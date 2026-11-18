@@ -1,9 +1,18 @@
 pluginManagement {
-    repositories { google(); mavenCentral(); gradlePluginPortal() }
+    repositories {
+        google()
+        maven("https://maven.aliyun.com/repository/gradle-plugin")
+        gradlePluginPortal()
+        mavenCentral()
+    }
 }
 dependencyResolutionManagement {
     repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS)
-    repositories { google(); mavenCentral() }
+    repositories {
+        google()
+        maven("https://maven.aliyun.com/repository/public")
+        mavenCentral()
+    }
 }
 rootProject.name = "hailon2v1"
 include(":app")
