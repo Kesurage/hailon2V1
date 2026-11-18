@@ -1,0 +1,5 @@
+cmake_minimum_required(VERSION 3.22.1)
+project(hakux_h2 LANGUAGES CXX)
+add_library(hakux_h2 SHARED hakux_h2_jni.cpp)
+find_library(log-lib log)
+target_link_libraries(hakux_h2 ${log-lib})
