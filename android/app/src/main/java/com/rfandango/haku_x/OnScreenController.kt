@@ -14,6 +14,7 @@ import android.net.Uri
 import android.os.Build
 import android.os.SystemClock
 import android.util.AttributeSet
+import android.view.Choreographer
 import android.view.MotionEvent
 import android.view.View
 import android.view.ViewConfiguration
@@ -96,10 +97,19 @@ class OnScreenController @JvmOverloads constructor(
   private val stickPointer = intArrayOf(-1, -1)
   private val stickPos = arrayOf(PointF(), PointF())
   /* the swipe-look pointer: a touch on the right of the screen over no
-   * control, aiming the camera from wherever it landed (the zone's own
-   * stick: it and the visible right stick take turns, never both) */
+   * control, aiming the camera as a touchpad (the zone's own input: it and
+   * the visible right stick take turns, never both) */
   private var lookPointer = -1
+  /* the ring drawn where the finger landed (the knob beside it shows the
+   * turning), and the last event's place — the touchpad's deltas come
+   * from it */
   private val lookAnchor = PointF()
+  private val lookLast = PointF()
+  /* the finger's speed as the stick: each move adds to a turning rate that
+   * eases away as the finger stops (lookPump) — Xash3D's touchpad look
+   * through the Xbox's stick */
+  private var lookVX = 0f
+  private var lookVY = 0f
   private var lookX = 0f
   private var lookY = 0f
   /* a stick floating with its pointer: the layout place to go back to */
@@ -235,10 +245,10 @@ class OnScreenController @JvmOverloads constructor(
       canvas.restore()
     }
     if (!editing && lookPointer != -1 && !minimal) {
-      /* the swipe-look's floating stick, visible where the finger landed:
-       * the same ring and knob as the move stick's, its knob at the
-       * smoothed deflection (drawStick's shape), its ring chasing the
-       * finger past the rim (moveLook) */
+      /* the touchpad look's ring, visible where the finger landed: the
+       * same ring and knob as the move stick's, the knob at the turning
+       * rate the finger's moves have built (moveLook), easing to rest as
+       * the finger stops (the pump) */
       painter.floatingStick(canvas, lookAnchor.x, lookAnchor.y, lookStickRadius, stickPos[1].x, stickPos[1].y)
     }
     if (editing) {
@@ -310,7 +320,7 @@ class OnScreenController @JvmOverloads constructor(
     h = 31 * h + dpadBits
     h = 31 * h + if (menuPressed) 1 else 0
     h = 31 * h + if (lookPointer != -1) 1 else 0
-    h = 31 * h + lookAnchor.x.toRawBits() /* the look's ring chases the finger */
+    h = 31 * h + lookAnchor.x.toRawBits() /* the look's ring sits where the finger landed */
     h = 31 * h + lookAnchor.y.toRawBits()
     for (i in 0..1) {
       h = 31 * h + if (stickPointer[i] != -1) 1 else 0
@@ -533,7 +543,10 @@ class OnScreenController @JvmOverloads constructor(
     ) {
       lookPointer = pointer
       lookAnchor.set(x, y)
-      moveLook(x, y)
+      lookLast.set(x, y)
+      lookVX = 0f
+      lookVY = 0f
+      startLookPump()
       return
     }
     if (prefs.floatingStick && stickPointer[0] == -1 && x < width * 0.42f && y > height * 0.28f) {
@@ -708,40 +721,78 @@ class OnScreenController @JvmOverloads constructor(
   }
 
   /**
-   * The camera from a swipe on the empty right of the screen, a floating
-   * stick like a mobile game's: the ring appears where the finger lands
-   * (onDraw draws it), the drag from there the deflection. Past the rim the
-   * anchor chases the finger, so a long swipe keeps turning at full tilt
-   * without the finger running off the screen — back within the rim, the
-   * anchor stays and the drag aims as before.
+   * The camera as a touchpad, Xash3D's way (its in_touch.c calls the look
+   * "like a touchpad": every move of the finger turns the view by that
+   * movement, through touch_yaw and touch_pitch — no anchor to push
+   * against, no rim, no dead zone; a finger-width drag aims that much,
+   * always). Through the Xbox's stick it is the finger's speed that is
+   * the deflection: each move adds to a turning rate that the pump below
+   * eases away as the finger stops, so the camera follows the finger at
+   * any pace and stops when it does. The ring stays where the finger
+   * landed, its knob showing the turning.
    */
   private fun moveLook(x: Float, y: Float) {
-    var dx = x - lookAnchor.x
-    var dy = y - lookAnchor.y
-    val travel = lookTravel
-    val m = hypot(dx, dy)
-    if (m > travel && m > 0f) {
-      val pull = 1f - travel / m
-      lookAnchor.x += dx * pull
-      lookAnchor.y += dy * pull
-      dx = x - lookAnchor.x
-      dy = y - lookAnchor.y
+    val dx = (x - lookLast.x) / width    /* fractions of the screen, Xash3D's own scale */
+    val dy = (y - lookLast.y) / height
+    lookLast.set(x, y)
+    val k = 2.5f * prefs.lookSensitivity
+    var vx = lookVX + dx * k
+    var vy = lookVY + dy * k
+    val m = hypot(vx, vy)
+    if (m > 1f) {                          /* the stick's rim: a flick is a full-tilt turn */
+      vx /= m
+      vy /= m
     }
-    applyStick(1, dx / travel, dy / travel)
+    lookVX = vx
+    lookVY = vy
+    startLookPump()
   }
-
-  /** The drag that is the look's full deflection: the sensitivity's own scale. */
-  private val lookTravel get() = height * 0.18f
 
   /** The floating look stick's ring, on the screen's scale. */
   private val lookStickRadius get() = height * 0.10f
 
+  /*
+   * The turning rate's life between the finger's moves: each display frame
+   * a fifth of it is left (the finger held still settles the camera in
+   * ~100 ms), the stick eased toward it (LOOK_SMOOTH's calm), and the
+   * drawing asked for. It runs while the finger is down and until the
+   * stick has drained after it lifts.
+   */
+  private var lookPumpOn = false
+  private val lookPump: Choreographer.FrameCallback = Choreographer.FrameCallback {
+    lookVX *= 0.8f
+    lookVY *= 0.8f
+    lookX += (lookVX - lookX) * LOOK_SMOOTH
+    lookY += (lookVY - lookY) * LOOK_SMOOTH
+    stickPos[1].set(lookX, lookY)
+    listener?.onStickMoved(Stick.RIGHT, lookX, lookY)
+    redrawWanted()
+    lookPumpOn = lookPointer != -1 || abs(lookX) + abs(lookY) > 0.01f
+    if (lookPumpOn) {
+      Choreographer.getInstance().postFrameCallback(lookPump)
+    }
+  }
+
+  private fun startLookPump() {
+    if (!lookPumpOn) {
+      lookPumpOn = true
+      Choreographer.getInstance().postFrameCallback(lookPump)
+    }
+  }
+
   private fun endLook() {
     lookPointer = -1
-    lookX = 0f
-    lookY = 0f
-    stickPos[1].set(0f, 0f)
-    listener?.onStickMoved(Stick.RIGHT, 0f, 0f)
+    lookVX = 0f
+    lookVY = 0f
+    /* the stick drains to rest by the pump (an eased stop, not a snap);
+     * if it already rests, the game is told at once */
+    if (!lookPumpOn) {
+      lookX = 0f
+      lookY = 0f
+      stickPos[1].set(0f, 0f)
+      listener?.onStickMoved(Stick.RIGHT, 0f, 0f)
+      redrawWanted()
+    }
   }
 
   private fun releaseStick(i: Int) {

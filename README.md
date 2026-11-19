@@ -36,6 +36,34 @@ v1.3.0 release, and adds:
   GitHub Release on every `v*` tag. The in-app updater follows this
   repository's releases.
 
+## v0002A — Xash3D's touchpad look, the native screen, the mod loader
+
+What 1.7.0's feedback asked for.
+
+- **The look is a touchpad, Xash3D's way** — its `in_touch.c` calls the
+  look "like a touchpad": every move of the finger turns the view by that
+  movement (through `touch_yaw`/`touch_pitch`), no anchor, no rim, no
+  dead zone. Through the Xbox's stick, the finger's speed is the
+  deflection: each move adds to a turning rate that eases away as the
+  finger stops, so the camera follows the finger at any pace and stops
+  when it does. The ring stays where the finger landed, its knob showing
+  the turning.
+- **The native screen** — Halo 2 renders for the phone's whole panel: its
+  anamorphic factor (`0x45DFDC`, the Halo 2 HD patch's own address; the
+  camera FOV global beside it confirmed by kirklandsig/halo2-decompiled)
+  is patched at game start to this screen's shape, and the Native aspect
+  (the default) lays the frame over the whole screen — the widened view
+  and the stretch cancel out: full screen, no bars, no crop, no
+  distortion. "Native camera" in Mods & cheats, on by default,
+  experimental (the HUD draws for the wider shape; a title update's XBE
+  is not patched).
+- **The mod loader** — Mods & cheats → Import a mod: a modded cache map
+  (.map, Assembly's and the Xbox map tools' own form; keep the map's file
+  name and it replaces it on the disc), a mod.txt of XBE patches, or a
+  ZIP holding either. Toggles like the built-ins, removable, read at the
+  next game start; import errors are named and a failed import leaves
+  nothing behind.
+
 ## v1.7.0 — FSR 1 for real, the visible look stick, PanVK for the G100
 
 What 1.6.0's feedback asked for.

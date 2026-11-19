@@ -91,15 +91,17 @@ class AppPrefs(context: Context) {
     set(value) = sp.edit { putInt(NativeCoreActivity.PREF_SCALE, value) }
 
   /**
-   * The picture's shape: auto, 4:3, 16:9, stretch or fill (read at game start).
-   * This fork's default is auto: with the console widescreen the whole 16:9
-   * picture, undistorted, nothing of it cropped away (Halo 2's HUD whole).
-   * Fill (the frame covers the screen, the spill cropped) and Stretch stay
-   * one tap away in Settings → Display; the game renders 16:9 at most, so
-   * on a taller phone panel one of the three always gives.
+   * The picture's shape: auto, 4:3, 16:9, stretch (native) or fill (read at game start).
+   * This fork's default is native: the frame laid over the whole screen —
+   * with Halo 2's native camera patch on (its anamorphic factor widened to
+   * this panel), the game renders for exactly that, and the widened view
+   * and the stretch cancel out: full screen, no bars, no crop, no
+   * distortion. Without the patch (another game, or it turned off) the
+   * frame is simply stretched — Fit and Fill are in Settings → Display.
    */
   var aspectRatio: String
-    get() = sp.getString(NativeCoreActivity.PREF_ASPECT, NativeCoreActivity.ASPECT_AUTO) ?: NativeCoreActivity.ASPECT_AUTO
+    get() = sp.getString(NativeCoreActivity.PREF_ASPECT, NativeCoreActivity.ASPECT_STRETCH)
+      ?: NativeCoreActivity.ASPECT_STRETCH
     set(value) = sp.edit { putString(NativeCoreActivity.PREF_ASPECT, value) }
 
   /** FXAA over each frame before it's scaled to the screen (read at game start). */

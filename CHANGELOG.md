@@ -1,5 +1,22 @@
 # Changelog
 
+## v0002A
+
+Xash3D's touchpad look, the native screen (the game rendered for the phone's whole panel), and the mod loader.
+
+### Touch controls
+- **The look is a touchpad, Xash3D's way** (its `in_touch.c`: the look is "like a touchpad" — every move of the finger turns the view by that movement, through `touch_yaw`/`touch_pitch`; no anchor, no rim, no dead zone). Through the Xbox's stick it is the finger's speed that is the deflection: each move adds to a turning rate that eases away as the finger stops (~100 ms), so the camera follows the finger at any pace and stops when it does. A finger-width drag aims that much, always. The ring stays where the finger landed, its knob showing the turning.
+
+### The native screen
+- **Halo 2 renders for the phone's whole panel.** The game's anamorphic factor — the Halo 2 HD patch's own address `0x45DFDC`, the camera FOV global beside it (`g_47136c = 1.f`) confirmed by the retail decompilation (kirklandsig/halo2-decompiled, 75.7% matched) — is patched at game start to this screen's own shape (its aspect × 3⁄4, computed from the panel at every start), and the **Native** aspect (the default, was "Stretch") lays the frame over the whole screen: the widened view and the stretch cancel out — **full screen, no bars, no crop, no distortion**. On by default as "Native camera" in Mods & cheats. Experimental, honestly so: the HUD is drawn for the wider shape too, and a title update's own XBE is not patched (a patch line whose bytes don't match is skipped and logged — nothing breaks, it just doesn't apply).
+- Fit (the whole 16:9 picture) and Fill (crop) stay one tap away in Settings → Display.
+
+### Mods
+- **The mod loader**: Mods & cheats → **Import a mod** — a modded Halo cache map (`.map`, as Assembly and the Xbox map tools write them; keep the map's own file name and it replaces it on the disc — PC map mods' usual form), a `mod.txt` of XBE patches (mods/README.md's format), or a ZIP holding either (a mod.txt with its `files/` tree, or maps). Imported mods toggle like the built-ins, are removed with their button, and the game reads them at their next start. Import errors are named (not a mod / no patches in the text / unreadable / empty), and a failed import leaves nothing behind.
+
+### Also
+- FSR 1 (fixed in 1.7.0) keeps running under the native screen: the anamorphic frame upscaled by EASU, sharpened by RCAS.
+
 ## v1.7.0
 
 FSR 1 actually running, the look controls visible on the screen, a graphics driver to try for the Helio G100, and the whole picture back.

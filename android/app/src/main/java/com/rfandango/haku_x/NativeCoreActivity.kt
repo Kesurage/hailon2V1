@@ -604,11 +604,13 @@ class NativeCoreActivity : SDLActivity(), InputManager.InputDeviceListener {
   @Volatile private var runCheats: List<CheatInfo> = emptyList()
   @Volatile private var runKey = ""
 
-  /** "mods=<manifest>" when the disc's title has mods or cheats (SDL's thread: may extract a mod's files). */
+  /** "mods=<manifest>" when the disc's title has mods, cheats or the native
+   * camera patch (SDL's thread: may extract a mod's files). */
   private fun modsArg(): String? {
     if (discUri == null) return null
     val key = gameKey()
-    if (!ModCatalog.has(this, key)) return null
+    /* a Halo 2 release always writes one: its native camera patch is in it */
+    if (!ModCatalog.has(this, key) && key.substringBefore('.') !in ModChoices.HALO2_TITLE_IDS) return null
     return runCatching { ModRun.write(this, key) }
       .onFailure { Log.e(TAG, "mods: ${it.message}") }
       .getOrNull()
@@ -1168,6 +1170,7 @@ class NativeCoreActivity : SDLActivity(), InputManager.InputDeviceListener {
     const val DEFAULT_SCALE = 1
     const val PREF_ASPECT = "aspect_ratio"
     const val ASPECT_AUTO = "auto"
+    const val ASPECT_STRETCH = "stretch"
     const val ASPECT_FILL = "fill"
     const val PREF_FXAA = "fxaa"
     const val PREF_UPSCALE = "upscale_filter"
