@@ -95,35 +95,31 @@ jobs:
           TAG="${GITHUB_REF#refs/tags/}"
           V="${{ env.VERSION }}"
           cat > release-notes.md <<EOF
-          hailon2V1 ${{ env.VERSION }} — the touch look actually works now
+          hailon2V1 ${{ env.VERSION }} — free look, PUBG's way: nothing drawn, no fps cost
 
-          The 0002A look was dead in the water and here is why, plainly:
-          a normal aim swipe built up to about 0.13 stick deflection, and
-          Halo 2 ignores everything under about 0.28 (its own dead zone).
-          Slow and medium swipes did nothing at all. 0002B fixes exactly
-          that, on the four points of the spec:
+          The 0002B look showed a ring where your finger landed and redrew
+          it every single frame through the drawing path that this code's
+          own comment warns took ~80% of a render core on a Galaxy Tab —
+          that was the lag and the dropped frames while aiming. And the
+          right stick's ring was still there to fight. 0002C is the
+          mobile-shooter model, plainly:
 
-          - Every deflection we mean at all is lifted over the game's
-            dead zone on its way out: the smallest movement of a finger
-            goes as 0.28 turn at the least, so micro-swipes aim instead
-            of dying, and the rim is still full tilt. This lift goes for
-            the move stick too — a gentle push now walks.
-          - The deltas are in dp, and the turn rate's ease is set by the
-            frame's own time, not by a per-frame guess: the same feel at
-            60 Hz and 120 Hz, on any panel.
-          - A finger still for 40 ms stops the camera on the next frame.
-            No drifting, no spinning.
-          - A quick drag of about 140 dp held over the ease is a
-            full-tilt turn; the sensitivity slider scales it (higher =
-            less drag for the same turn).
-
-          Also: the Mods screen now carries the modding instructions in
-          plain words — maps and character models live inside the game's
-          map files, so export the modded .map from Assembly (keep its
-          file name) and import it here; a mod.txt or a ZIP works too.
+          - The right of the screen (from 42% across, the whole height)
+            is a plain invisible touchpad: drag anywhere a button isn't
+            to aim, PUBG / COD Mobile's way. Nothing is drawn for it —
+            no ring, no knob, nothing.
+          - The right stick's ring is not shown while free look is on
+            (Settings: Free look — turn it off and the stick is back).
+          - Aiming now redraws zero pixels of the overlay and wakes the
+            turn-rate pump only while something changes: a held-still
+            finger costs literally nothing. The fps drop is gone at the
+            source.
+          - The camera stops the instant the finger lifts or rests
+            (80 ms); every movement still goes to the game above its
+            dead zone (0002B's fix, kept).
 
           hailon2V1-$V-debug.apk installs beside the stock hakuX (its id
-          ends in .debug) and updates over 0002A. hailon2V1-$V-release.apk
+          ends in .debug) and updates over 0002B. hailon2V1-$V-release.apk
           is the plain release build.
           GPL-3.0+ — source in this repository.
           EOF

@@ -102,10 +102,7 @@ class OnScreenController @JvmOverloads constructor(
    * control, aiming the camera as a touchpad (the zone's own input: it and
    * the visible right stick take turns, never both) */
   private var lookPointer = -1
-  /* the ring drawn where the finger landed (the knob beside it shows the
-   * turning), and the last event's place — the touchpad's deltas come
-   * from it */
-  private val lookAnchor = PointF()
+  /* the last event's place — the touchpad's deltas come from it */
   private val lookLast = PointF()
   /* the finger's speed as the stick: each move adds to a turning rate that
    * eases away with time (lookPump) — Xash3D's touchpad look through the
@@ -141,8 +138,12 @@ class OnScreenController @JvmOverloads constructor(
       }
     }
 
-  /** Not drawn and not touchable while playing. */
-  private fun off(s: ControlSpec) = !s.visible || (minimal && (s.id != ControlId.MENU || jewelHidden))
+  /** Not drawn and not touchable while playing. Swipe look owns the right of
+   * the screen, so its stick is not shown then (the editor still shows it,
+   * faint, to move and keep). */
+  private fun off(s: ControlSpec) =
+    !s.visible || (minimal && (s.id != ControlId.MENU || jewelHidden)) ||
+      (prefs.swipeLook && s.id == ControlId.RIGHT_STICK)
 
   private val touchSlop = ViewConfiguration.get(context).scaledTouchSlop.toFloat()
   /* A drag on the right of the screen is the camera (swipe look): the menu
@@ -248,13 +249,6 @@ class OnScreenController @JvmOverloads constructor(
       drawControl(canvas, s)
       canvas.restore()
     }
-    if (!editing && lookPointer != -1 && !minimal) {
-      /* the touchpad look's ring, visible where the finger landed: the
-       * same ring and knob as the move stick's, the knob at the turning
-       * rate the finger's moves have built (moveLook), easing to rest as
-       * the finger stops (the pump) */
-      painter.floatingStick(canvas, lookAnchor.x, lookAnchor.y, lookStickRadius, stickPos[1].x, stickPos[1].y)
-    }
     if (editing) {
       val sel = selected
       if (sel != null) {
@@ -323,14 +317,17 @@ class OnScreenController @JvmOverloads constructor(
     var h = held.keys.hashCode()
     h = 31 * h + dpadBits
     h = 31 * h + if (menuPressed) 1 else 0
-    h = 31 * h + if (lookPointer != -1) 1 else 0
-    h = 31 * h + lookAnchor.x.toRawBits() /* the look's ring sits where the finger landed */
-    h = 31 * h + lookAnchor.y.toRawBits()
     for (i in 0..1) {
+      val spec = layout?.get(if (i == 0) ControlId.LEFT_STICK else ControlId.RIGHT_STICK)
       h = 31 * h + if (stickPointer[i] != -1) 1 else 0
-      h = 31 * h + stickPos[i].x.toRawBits()
-      h = 31 * h + stickPos[i].y.toRawBits()
-      layout?.get(if (i == 0) ControlId.LEFT_STICK else ControlId.RIGHT_STICK)?.let {
+      if (i == 0 || (spec?.let { !off(it) } == true)) {
+        /* the knob's place — the right stick's only when it is drawn: the
+         * swipe look draws nothing at all (its rate lives in the pump, off
+         * the screen), so looking redraws not one pixel */
+        h = 31 * h + stickPos[i].x.toRawBits()
+        h = 31 * h + stickPos[i].y.toRawBits()
+      }
+      spec?.let {
         h = 31 * h + it.cx.toRawBits() /* a stick floats to where its touch landed */
         h = 31 * h + it.cy.toRawBits()
       }
@@ -537,20 +534,18 @@ class OnScreenController @JvmOverloads constructor(
 
   /**
    * A touch over no control: the camera on the right of the screen (swipe
-   * look), the move stick floating to it on the left — as a mobile game's
-   * touch controls take the empty screen, not the fixed Duke's places alone.
+   * look — the whole right side, anywhere a button is not), the move stick
+   * floating to it on the left — as a mobile game's touch controls take
+   * the empty screen, not the fixed Duke's places alone. Nothing is drawn
+   * for the look: the right side is a plain touchpad, PUBG's way.
    */
   private fun grabZone(x: Float, y: Float, pointer: Int) {
     if (minimal) return
-    if (prefs.swipeLook && lookPointer == -1 && stickPointer[1] == -1 &&
-      x >= width * 0.42f && y > height * 0.25f
-    ) {
+    if (prefs.swipeLook && lookPointer == -1 && stickPointer[1] == -1 && x >= width * 0.42f) {
       lookPointer = pointer
-      lookAnchor.set(x, y)
       lookLast.set(x, y)
       lookVX = 0f
       lookVY = 0f
-      startLookPump()
       return
     }
     if (prefs.floatingStick && stickPointer[0] == -1 && x < width * 0.42f && y > height * 0.28f) {
@@ -774,25 +769,26 @@ class OnScreenController @JvmOverloads constructor(
     startLookPump()
   }
 
-  /** The floating look stick's ring, on the screen's scale. */
-  private val lookStickRadius get() = height * 0.10f
-
   /*
    * The turning rate's life between the finger's moves, frame-time
-   * normalized (the same ease at any refresh rate): while the finger
-   * moves, each display frame the rate keeps a fraction of itself set by
-   * the time the frame took; a finger still for LOOK_IDLE_MS zeroes the
-   * rate at once, on the next frame — an idle touch never spins the
-   * camera. What goes to the game is the rate lifted over its dead zone
-   * (lift), so even the smallest movement turns. It runs while the finger
-   * is down, and until the rate has drained after it lifts.
+   * normalized (the same ease at any refresh rate) and drawing nothing:
+   * each display frame the rate keeps a fraction of itself set by the
+   * time the frame took; a finger still for LOOK_IDLE_MS zeroes the rate
+   * at once — an idle touch never spins the camera. What goes to the game
+   * is the rate lifted over its dead zone (lift), and only when it
+   * changed: rest repeated is rest already told. When there is nothing
+   * left to ease — a still finger, a lifted one, the rate drained — the
+   * pump stops, costing nothing until the finger moves again.
    */
   private var lookPumpOn = false
   private var lastFrameNs = 0L
+  private var emittedLookX = 0f
+  private var emittedLookY = 0f
   private val lookPump: Choreographer.FrameCallback = Choreographer.FrameCallback { frameNs ->
     val dt = if (lastFrameNs == 0L) 1f / 60f else (frameNs - lastFrameNs) / 1e9f
     lastFrameNs = frameNs
-    if (SystemClock.uptimeMillis() - lastLookMoveMs > LOOK_IDLE_MS) {
+    val idle = SystemClock.uptimeMillis() - lastLookMoveMs > LOOK_IDLE_MS
+    if (idle) {
       lookVX = 0f
       lookVY = 0f
     } else {
@@ -800,14 +796,16 @@ class OnScreenController @JvmOverloads constructor(
       lookVX *= decay
       lookVY *= decay
     }
-    stickPos[1].set(lookVX, lookVY)
-    emitStick(1, lookVX, lookVY)
-    redrawWanted()
-    if (lookPointer == -1 && abs(lookVX) + abs(lookVY) < 0.02f) {
+    if (abs(lookVX) + abs(lookVY) < 0.02f) {
       lookVX = 0f
       lookVY = 0f
-      stickPos[1].set(0f, 0f)
-      emitStick(1, 0f, 0f)
+    }
+    if (lookVX != emittedLookX || lookVY != emittedLookY) {
+      emitStick(1, lookVX, lookVY)
+      emittedLookX = lookVX
+      emittedLookY = lookVY
+    }
+    if ((lookPointer == -1 || idle) && lookVX == 0f && lookVY == 0f) {
       lookPumpOn = false
       return@FrameCallback
     }
@@ -817,6 +815,7 @@ class OnScreenController @JvmOverloads constructor(
   private fun startLookPump() {
     if (!lookPumpOn) {
       lookPumpOn = true
+      lastFrameNs = 0L
       Choreographer.getInstance().postFrameCallback(lookPump)
     }
   }
@@ -825,12 +824,12 @@ class OnScreenController @JvmOverloads constructor(
     lookPointer = -1
     lookVX = 0f
     lookVY = 0f
-    /* the pump stops the emissions (an eased stop); if it isn't running,
-     * the game is told rest at once */
-    if (!lookPumpOn) {
-      stickPos[1].set(0f, 0f)
+    /* the camera stops the moment the finger lifts, PUBG's way; the game
+     * is told rest only if it was told otherwise */
+    if (emittedLookX != 0f || emittedLookY != 0f) {
       emitStick(1, 0f, 0f)
-      redrawWanted()
+      emittedLookX = 0f
+      emittedLookY = 0f
     }
   }
 
@@ -1178,8 +1177,10 @@ class OnScreenController @JvmOverloads constructor(
     const val LOOK_DRAG_DP = 140f
     /** The turning rate's ease when the finger rests, in seconds (any refresh rate). */
     const val LOOK_TAU_S = 0.07f
-    /** A finger still this long stops the camera at once (ms). */
-    const val LOOK_IDLE_MS = 40L
+    /** A finger still this long stops the camera at once (ms) — long enough
+     * that a digitizer batching its samples (~every 80 ms on some panels)
+     * is not read as a stop between batches. */
+    const val LOOK_IDLE_MS = 80L
     val DPAD_BUTTONS = listOf(
       ControlPainter.DPAD_UP to Button.DPAD_UP,
       ControlPainter.DPAD_DOWN to Button.DPAD_DOWN,

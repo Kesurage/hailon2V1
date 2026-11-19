@@ -36,6 +36,24 @@ v1.3.0 release, and adds:
   GitHub Release on every `v*` tag. The in-app updater follows this
   repository's releases.
 
+## v0002C — free look, PUBG's way: nothing drawn, no fps cost
+
+- **What was broken in 0002B**: the look drew a ring where the finger
+  landed and redrew it every frame through the overlay's uncached
+  gradient path (which this code's own comment warns took ~80% of a
+  render core on a Galaxy Tab S9 while a stick was held) — the lag and
+  the dropped frames while aiming, and still "a stick to fight".
+- **The right side is a plain invisible touchpad now** — from 42%
+  across, the whole height: drag anywhere a button isn't to aim, PUBG /
+  COD Mobile's way. Nothing is drawn for it.
+- **The right stick's ring is not shown while free look is on**
+  (Settings → Free look; off brings the anchored stick back, working).
+- **Aiming redraws zero pixels**: the turn-rate pump wakes only while
+  the rate changes and stops dead when the finger rests or lifts. A
+  held-still finger costs literally nothing.
+- The camera stops the instant the finger lifts or rests (80 ms);
+  every movement still reaches the game above its dead zone.
+
 ## v0002B — the touch look actually works now
 
 - **What was broken in 0002A, plainly**: a normal aim swipe built up to
