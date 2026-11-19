@@ -7,6 +7,9 @@ import android.view.ViewGroup
 import android.widget.FrameLayout
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.LocalActivity
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.PickVisualMediaRequest
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
@@ -40,6 +43,10 @@ fun ControlsEditorScreen(onClose: () -> Unit) {
   }
 
   val controller = remember { arrayOfNulls<OnScreenController>(1) }
+  /** The editor bar's Photo action: a picture for the selected control's icon. */
+  val pickIcon = rememberLauncherForActivityResult(ActivityResultContracts.PickVisualMedia()) { uri ->
+    controller[0]?.setIconImage(uri)
+  }
   BackHandler {
     controller[0]?.reloadLayout() // back: drop the edits
     onClose()
@@ -57,7 +64,9 @@ fun ControlsEditorScreen(onClose: () -> Unit) {
         controller[0] = overlay
         addView(overlay, FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT))
         addView(
-          OverlayEditorBar(ctx, overlay) { onClose() },
+          OverlayEditorBar(ctx, overlay, onPickIcon = {
+            pickIcon.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))
+          }) { onClose() },
           FrameLayout.LayoutParams(
             ViewGroup.LayoutParams.WRAP_CONTENT,
             ViewGroup.LayoutParams.WRAP_CONTENT,

@@ -123,8 +123,9 @@ static void debug_poll(void)
 }
 
 /* The frame's half size in the window (clip space): letterboxed to the
- * chosen shape, the frame's own (4:3 for 640x480), 4:3, 16:9, or the
- * window's (stretched). */
+ * chosen shape — the frame's own (4:3 for 640x480), 4:3, 16:9, the window's
+ * (stretched), or filled (both axes covered, the spill cropped: undistorted
+ * full screen). */
 static void place(uint32_t fw, uint32_t fh, uint32_t ww, uint32_t wh, float *sx, float *sy)
 {
     const float wa = (float)ww / (float)wh;
@@ -139,6 +140,16 @@ static void place(uint32_t fw, uint32_t fh, uint32_t ww, uint32_t wh, float *sx,
     case NC_ASPECT_STRETCH:
         fa = wa;
         break;
+    case NC_ASPECT_FILL:
+        /* Cover, not contain: scale by the larger ratio, centered, so the
+         * parts that don't fit the window's shape are cropped. */
+        *sx = *sy = 1.0f;
+        if (wa > fa) {
+            *sy = wa / fa;
+        } else {
+            *sx = fa / wa;
+        }
+        return;
     default:
         /* A standard-definition frame (640x480, 720x480: under 16:10) from a
          * console set to widescreen is anamorphic 16:9. */

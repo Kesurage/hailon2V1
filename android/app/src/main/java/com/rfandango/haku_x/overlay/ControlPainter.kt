@@ -1,8 +1,12 @@
 package com.rfandango.haku_x.overlay
 
+import android.content.Context
+import android.graphics.Bitmap
+import android.graphics.BitmapFactory
 import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.LinearGradient
+import android.graphics.Matrix
 import android.graphics.Paint
 import android.graphics.Path
 import android.graphics.RadialGradient
@@ -17,8 +21,12 @@ import kotlin.math.hypot
  * concave dark thumbsticks with their cross grooves, the black D-pad disc with
  * its raised cross, the small black back and start buttons, and the jewel with
  * the green X in the middle.
+ *
+ * A control whose spec's style isn't JEWEL (the editor's Icon action) draws as
+ * a flat disc, a thin ring, or the user's own picture (kept by OverlayStore)
+ * instead — buttons only; sticks, the D-pad and the menu keep their looks.
  */
-class ControlPainter {
+class ControlPainter(private val context: Context? = null) {
   private val p = Paint(Paint.ANTI_ALIAS_FLAG)
   private val text = Paint(Paint.ANTI_ALIAS_FLAG).apply {
     textAlign = Paint.Align.CENTER
@@ -40,21 +48,121 @@ class ControlPainter {
   )
   private val clickJewel = Jewel(0xFF6E6E6E.toInt(), 0xFF2E2E2E.toInt(), 0xFF0C0C0C.toInt())
 
+  /** The user's pictures, decoded small (they're drawn at a control's size). */
+  private val icons = HashMap<ControlId, Bitmap?>()
+
+  private fun icon(id: ControlId): Bitmap? {
+    val ctx = context ?: return null
+    if (!icons.containsKey(id)) {
+      val file = OverlayStore.iconFile(ctx, id)
+      icons[id] = file?.let {
+        val raw = BitmapFactory.decodeFile(it.absolutePath) ?: return@let null
+        val big = maxOf(raw.width, raw.height)
+        if (big <= 512) {
+          raw
+        } else {
+          val k = 512f / big
+          Bitmap.createScaledBitmap(raw, (raw.width * k).toInt().coerceAtLeast(1), (raw.height * k).toInt().coerceAtLeast(1), true)
+            .also { if (it != raw) raw.recycle() }
+        }
+      }
+    }
+    return icons[id]
+  }
+
+  /** The pictures changed (set, cleared, or the layout reloaded): draw them again. */
+  fun invalidateIcons() {
+    icons.values.forEach { it?.recycle() }
+    icons.clear()
+  }
+
   /**
    * One control. pressed: held; kx, ky: a stick's deflection (-1..1);
    * dpad: the D-pad's held directions (DPAD_* bits).
    */
   fun draw(c: Canvas, s: ControlSpec, pressed: Boolean, kx: Float = 0f, ky: Float = 0f, dpad: Int = 0) {
     when (s.id.kind) {
-      ControlKind.FACE -> face(c, s, pressed)
-      ControlKind.GEM -> gem(c, s, pressed)
-      ControlKind.PILL -> pill(c, s, pressed)
+      ControlKind.FACE -> if (s.style == ControlStyle.JEWEL) face(c, s, pressed) else custom(c, s, pressed)
+      ControlKind.GEM -> if (s.style == ControlStyle.JEWEL) gem(c, s, pressed) else custom(c, s, pressed)
+      ControlKind.PILL -> if (s.style == ControlStyle.JEWEL) pill(c, s, pressed) else custom(c, s, pressed)
       ControlKind.STICK -> stick(c, s, kx, ky)
       ControlKind.DPAD -> dpad(c, s, dpad)
-      ControlKind.TRIGGER -> trigger(c, s, pressed)
-      ControlKind.CLICK -> click(c, s, pressed)
+      ControlKind.TRIGGER -> if (s.style == ControlStyle.JEWEL) trigger(c, s, pressed) else custom(c, s, pressed)
+      ControlKind.CLICK -> if (s.style == ControlStyle.JEWEL) click(c, s, pressed) else custom(c, s, pressed)
       ControlKind.MENU -> menu(c, s, pressed)
     }
+  }
+
+  /* A button as the user styled it: disc, ring or their own picture; the
+   * jewel's colour still names the button where there's a letter. */
+  private fun custom(c: Canvas, s: ControlSpec, pressed: Boolean) {
+    val r = if (pressed) s.radius * 0.94f else s.radius
+    socket(c, s.cx, s.cy, s.radius * 1.13f)
+    when (s.style) {
+      ControlStyle.DISC -> {
+        p.style = Paint.Style.FILL
+        p.shader = null
+        p.color = if (pressed) 0xFF6E6E6E.toInt() else 0xFF3C3C3C.toInt()
+        c.drawCircle(s.cx, s.cy, r, p)
+        p.style = Paint.Style.STROKE
+        p.strokeWidth = maxOf(2f, r * 0.05f)
+        p.color = Color.argb(120, 255, 255, 255)
+        c.drawCircle(s.cx, s.cy, r * 0.96f, p)
+        label(c, s, Color.argb(230, 235, 235, 235), r)
+      }
+      ControlStyle.RING -> {
+        p.style = Paint.Style.STROKE
+        p.shader = null
+        p.strokeWidth = maxOf(3f, r * 0.09f)
+        p.color = if (pressed) Color.argb(235, 255, 255, 255) else Color.argb(160, 255, 255, 255)
+        c.drawCircle(s.cx, s.cy, r * 0.88f, p)
+        label(c, s, Color.argb(220, 255, 255, 255), r)
+      }
+      ControlStyle.PHOTO -> {
+        val bmp = icon(s.id)
+        if (bmp == null) {
+          // No picture (yet): a disc so the control stays readable.
+          p.style = Paint.Style.FILL
+          p.shader = null
+          p.color = 0xFF3C3C3C.toInt()
+          c.drawCircle(s.cx, s.cy, r, p)
+          label(c, s, Color.argb(230, 235, 235, 235), r)
+          return
+        }
+        c.save()
+        path.reset()
+        path.addCircle(s.cx, s.cy, r, Path.Direction.CW)
+        c.clipPath(path)
+        // The picture's short side spans the button, centred.
+        val k = (2f * r) / minOf(bmp.width, bmp.height)
+        val matrix = Matrix()
+        matrix.setTranslate(s.cx - bmp.width * k / 2f, s.cy - bmp.height * k / 2f)
+        matrix.postScale(k, k)
+        c.drawBitmap(bmp, matrix, p)
+        if (pressed) {
+          p.shader = null
+          p.style = Paint.Style.FILL
+          p.color = Color.argb(60, 255, 255, 255)
+          c.drawCircle(s.cx, s.cy, r, p)
+        }
+        c.restore()
+        p.style = Paint.Style.STROKE
+        p.strokeWidth = maxOf(2f, r * 0.05f)
+        p.color = Color.argb(110, 255, 255, 255)
+        c.drawCircle(s.cx, s.cy, r * 0.97f, p)
+      }
+      else -> {}
+    }
+  }
+
+  /* A control's letter or name, in the middle of its disc or ring. */
+  private fun label(c: Canvas, s: ControlSpec, color: Int, r: Float) {
+    if (s.id.label.isEmpty()) return
+    text.textSize = if (s.id.kind == ControlKind.PILL) r * 0.5f else r * 0.9f
+    text.letterSpacing = if (s.id.kind == ControlKind.PILL) 0.08f else 0f
+    text.color = color
+    c.drawText(s.id.label, s.cx, s.cy + text.textSize * 0.35f, text)
+    text.letterSpacing = 0f
   }
 
   /*

@@ -840,7 +840,9 @@ class NativeCoreActivity : SDLActivity(), InputManager.InputDeviceListener {
     val overlay = onScreenController ?: return
     overlay.minimal = false
     overlay.editing = true
-    val bar = OverlayEditorBar(this, overlay) { closeEditor() }
+    val bar = OverlayEditorBar(this, overlay, onPickIcon = { pickIcon() }) {
+      closeEditor()
+    }
     val params = RelativeLayout.LayoutParams(
       RelativeLayout.LayoutParams.WRAP_CONTENT,
       RelativeLayout.LayoutParams.WRAP_CONTENT,
@@ -850,6 +852,26 @@ class NativeCoreActivity : SDLActivity(), InputManager.InputDeviceListener {
     }
     mLayout?.addView(bar, params)
     editorBar = bar
+  }
+
+  /** The editor's Photo action: a picture for the selected control's icon.
+   * The plain-intent picker: the core's activity is SDL's (no activity
+   * result APIs), and the answer comes to onActivityResult. */
+  private fun pickIcon() {
+    startActivityForResult(
+      Intent(Intent.ACTION_GET_CONTENT).apply {
+        type = "image/*"
+        addCategory(Intent.CATEGORY_OPENABLE)
+      },
+      REQUEST_ICON,
+    )
+  }
+
+  override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
+    super.onActivityResult(requestCode, resultCode, data)
+    if (requestCode == REQUEST_ICON && resultCode == RESULT_OK) {
+      onScreenController?.setIconImage(data?.data)
+    }
   }
 
   /** A frontend (ES-DE...) launched the game: there's no library to go back to. */
@@ -1149,11 +1171,18 @@ class NativeCoreActivity : SDLActivity(), InputManager.InputDeviceListener {
     const val DEFAULT_SCALE = 1
     const val PREF_ASPECT = "aspect_ratio"
     const val ASPECT_AUTO = "auto"
+    const val ASPECT_FILL = "fill"
     const val PREF_FXAA = "fxaa"
     const val PREF_UPSCALE = "upscale_filter"
     const val UPSCALE_BILINEAR = "bilinear"
     const val UPSCALE_FSR = "fsr"
     const val UPSCALE_SGSR = "sgsr"
+    const val PREF_STICK_SENSITIVITY = "stick_sensitivity"
+    const val PREF_STICK_DEAD_ZONE = "stick_dead_zone"
+    const val PREF_SWIPE_MENU = "swipe_menu_open"
+
+    /** The editor's Photo action's request code (onActivityResult's). */
+    private const val REQUEST_ICON = 41
 
     /** fps, average frame time (ms), last frame time (ms), 1 if push-buffer decoding renders. */
     @JvmStatic

@@ -7,6 +7,14 @@ import java.io.File
 /** How a control is drawn and how it takes touches. */
 enum class ControlKind { FACE, GEM, PILL, STICK, DPAD, TRIGGER, CLICK, MENU }
 
+/**
+ * A button-ish control's look (the editor's Icon action cycles these): the
+ * glossy jewel as on the controller (JEWEL), a flat dark disc (DISC), a thin
+ * outline (RING), or the user's own picture (PHOTO, OverlayStore's icon file
+ * for the control). Sticks, the D-pad and the menu keep their own looks.
+ */
+enum class ControlStyle { JEWEL, DISC, RING, PHOTO }
+
 /** The on-screen controller's controls, laid out like the original Xbox controller (the "Duke"). */
 enum class ControlId(val kind: ControlKind, val label: String, val title: String) {
   A(ControlKind.FACE, "A", "A button"),
@@ -38,8 +46,9 @@ class ControlSpec(
   var radius: Float,
   var visible: Boolean = true,
   var opacity: Float = OverlayStore.DEFAULT_OPACITY,
+  var style: ControlStyle = ControlStyle.JEWEL,
 ) {
-  fun copy() = ControlSpec(id, cx, cy, radius, visible, opacity)
+  fun copy() = ControlSpec(id, cx, cy, radius, visible, opacity, style)
 }
 
 /** All controls. */
@@ -59,6 +68,15 @@ object OverlayStore {
   /** Half see-through: the game stays visible under the controls. */
   const val DEFAULT_OPACITY = 0.5f
 
+  /** A control's chosen picture (ControlStyle.PHOTO), kept small; null when none. */
+  fun iconFile(context: Context, id: ControlId): File? =
+    File(File(context.filesDir, "overlay_icons"), id.name + ".png").takeIf { it.isFile }
+
+  /** Drops a control's picture (the editor's clear, or the style left PHOTO). */
+  fun clearIcon(context: Context, id: ControlId) {
+    iconFile(context, id)?.delete()
+  }
+
   fun load(context: Context, w: Float, h: Float): OverlayLayout {
     val layout = defaults(w, h)
     val file = File(context.filesDir, FILE)
@@ -76,6 +94,9 @@ object OverlayStore {
         spec.radius = (c.optDouble("r", (spec.radius / h).toDouble()).toFloat() * h).coerceIn(minRadius(h), maxRadius(h))
         spec.visible = id == ControlId.MENU || c.optBoolean("v", true)
         spec.opacity = c.optDouble("o", DEFAULT_OPACITY.toDouble()).toFloat().coerceIn(MIN_OPACITY, 1f)
+        spec.style = c.optString("s", ControlStyle.JEWEL.name).let {
+          try { ControlStyle.valueOf(it) } catch (_: Exception) { ControlStyle.JEWEL }
+        }
       }
     } catch (_: Exception) {
       return defaults(w, h)
@@ -92,6 +113,7 @@ object OverlayStore {
         put("r", (spec.radius / h).toDouble())
         put("v", spec.visible)
         put("o", spec.opacity.toDouble())
+        put("s", spec.style.name)
       })
     }
     val root = JSONObject().apply {

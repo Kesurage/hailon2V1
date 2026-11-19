@@ -30,6 +30,8 @@ import kotlin.math.roundToInt
 class OverlayEditorBar(
   context: Context,
   private val controller: OnScreenController,
+  /** The Photo action's picker (the host's photo launcher); null: no Photo. */
+  private val onPickIcon: (() -> Unit)? = null,
   private val onFinished: () -> Unit,
 ) : FrameLayout(context) {
   private val density = resources.displayMetrics.density
@@ -41,6 +43,9 @@ class OverlayEditorBar(
   private val larger = action(R.string.overlay_editor_larger) { controller.resize(STEP) }
   private val hideShow = action(R.string.overlay_editor_hide) { controller.toggleSelectedVisible() }
   private val opacity = label()
+  private val iconStyle = action(R.string.overlay_editor_icon) { controller.cycleSelectedStyle() }
+  private val iconPhoto = action(R.string.overlay_editor_icon_photo) { onPickIcon?.invoke() }
+  private val iconClear = action(R.string.overlay_editor_icon_clear) { controller.clearSelectedIcon() }
 
   init {
     val pad = dp(6)
@@ -63,6 +68,11 @@ class OverlayEditorBar(
       addView(action(R.string.overlay_editor_smaller) { controller.changeOpacity(-0.1f) })
       addView(opacity, LinearLayout.LayoutParams(dp(112), LinearLayout.LayoutParams.WRAP_CONTENT))
       addView(action(R.string.overlay_editor_larger) { controller.changeOpacity(0.1f) })
+    })
+    bar.addView(group().apply {
+      addView(iconStyle)
+      addView(iconPhoto)
+      addView(iconClear)
     })
     bar.addView(group().apply {
       addView(action(R.string.overlay_editor_reset) { controller.resetLayout() })
@@ -110,6 +120,13 @@ class OverlayEditorBar(
   private fun refresh() {
     val sel = controller.selectedControl()
     title.text = sel?.title ?: context.getString(R.string.overlay_editor_pick)
+    // The icon actions: a selected button (sticks, the D-pad and the menu
+    // keep their looks), Photo only where the host brings a picker.
+    val styleable = sel != null && controller.styleable(sel)
+    listOf(iconStyle, iconPhoto, iconClear).forEach {
+      it.isEnabled = styleable && (it !== iconPhoto || onPickIcon != null)
+      it.alpha = if (it.isEnabled) 1f else 0.35f
+    }
     // Size and opacity: the selected control's, or with none selected all of them.
     val scale = controller.scalePercent()
     size.text = when {

@@ -95,31 +95,34 @@ jobs:
           TAG="${GITHUB_REF#refs/tags/}"
           V="${{ env.VERSION }}"
           cat > release-notes.md <<EOF
-          hailon2V1 ${{ env.VERSION }} — the launcher release: FSR 1.0, better touch sticks, a cleaner HUD
+          hailon2V1 ${{ env.VERSION }} — fill (crop) full screen, custom icon controls, swipe, tunable sticks
 
-          Over 1.3.1 (which already carried hakuX master's Mali-G57 fixes: the
-          swapchain image-array cap that flickered, vb_align, no_wbuf, the
-          timeline semaphore wait):
+          Over 1.4.0 (FSR 1.0, smooth stick ramps, FPS-only HUD — and its
+          feedback, applied here):
 
-          - AMD FidelityFX Super Resolution 1.0 (EASU + RCAS) as an upscaling
-            filter in Settings → Graphics: on the Helio G100's Mali-G57 MC2,
-            1x resolution + FSR is the speed preset (the frame is rebuilt at
-            the panel's size instead of blurring into it); it replaces FXAA
-            while on (RCAS sharpens). From AMD's FidelityFX-FSR, MIT.
-          - Touch sticks: the dead zone no longer jumps (a smooth ramp from
-            its edge to full tilt), and full deflection is reached a little
-            inside the rim, where a thumb actually lands.
-          - The in-game HUD is the FPS counter only; the debug hitch monitor
-            is off by default (still in the settings).
-          - Settings: an About section (version, license); the upscaler list
-            names all three filters. Full-screen with the notch in use was
-            already hakuX's (shortEdges + fullscreen theme).
-          - Custom Vulkan drivers (a panvk build for the G57 among them) load
-            through Settings → GPU driver on phones with /dev/mali0 — the
-            stock driver stays the default.
+          - Picture shape → Fill (crop the edges): the whole screen covered
+            at one scale, no distortion, the spill over the panel's shape
+            cropped centred. Stretch still exists; Fill is the undistorted
+            full screen.
+          - Custom icon controls: the editor bar's Icon actions cycle a
+            button's look — jewel, flat disc, thin ring, or your own picture
+            (Photo… from the gallery, circle-cropped in place). Sticks, the
+            D-pad and the menu keep their looks.
+          - Touch sticks you calibrate: the 1.4.0 curve is back to neutral
+            (linear from the dead zone's edge to the rim), with new sliders
+            in Settings → Controls — sensitivity 0.5-1.6x, dead zone 5-30%.
+          - Swipe up from the bottom, or down from the top, opens the menu
+            (a switch turns it off; it never starts on a control).
+          - FSR 1 made honest: the shaders were proven valid with glslang,
+            the sharpening set to AMD's sample default (visible), and when
+            FSR can't apply the core logs why instead of silently falling
+            back — it applies when the picture is smaller than its place
+            (always true at scale 1x).
+          - Performance preset in Settings → Graphics: scale 1x + FSR 1 +
+            FXAA off, one tap.
 
           hailon2V1-$V-debug.apk installs beside the stock hakuX (its id ends
-          in .debug) and updates over 1.3.1. hailon2V1-$V-release.apk is the
+          in .debug) and updates over 1.4.0. hailon2V1-$V-release.apk is the
           plain release build.
           GPL-3.0+ — source in this repository.
           EOF

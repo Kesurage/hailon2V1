@@ -17,11 +17,14 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material3.ListItem
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Slider
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
@@ -31,6 +34,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.unit.dp
 import com.rfandango.haku_x.BuildConfig
 import com.rfandango.haku_x.GpuDriverHelper
 import com.rfandango.haku_x.NativeCoreActivity
@@ -57,6 +61,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.util.Calendar
 import java.util.GregorianCalendar
+import kotlin.math.roundToInt
 
 /** What the core reads at game start, plus the games folders the library scans. */
 @Composable
@@ -91,6 +96,9 @@ fun SettingsScreen(
   var fxaa by remember { mutableStateOf(prefs.fxaa) }
   var upscale by remember { mutableStateOf(prefs.upscaleFilter) }
   var upscaleDialog by remember { mutableStateOf(false) }
+  var stickSensitivity by remember { mutableFloatStateOf(prefs.stickSensitivity) }
+  var stickDeadZone by remember { mutableFloatStateOf(prefs.stickDeadZone) }
+  var swipeMenu by remember { mutableStateOf(prefs.swipeMenuOpen) }
   var format by remember { mutableStateOf(prefs.screenFormat) }
   var p480 by remember { mutableStateOf(prefs.video480p) }
   var p720 by remember { mutableStateOf(prefs.video720p) }
@@ -176,6 +184,36 @@ fun SettingsScreen(
         headlineContent = { Text(stringResource(R.string.controllers_title)) },
         supportingContent = { Text(stringResource(R.string.controllers_settings_desc)) },
         modifier = Modifier.clickable(onClick = onControllers),
+      )
+      Column(Modifier.padding(horizontal = 16.dp)) {
+        Text(
+          stringResource(R.string.settings_stick_sensitivity, stickSensitivity),
+          style = MaterialTheme.typography.bodyLarge,
+        )
+        Slider(
+          value = stickSensitivity,
+          onValueChange = { stickSensitivity = it; prefs.stickSensitivity = it },
+          valueRange = 0.5f..1.6f,
+        )
+        Text(
+          stringResource(R.string.settings_stick_dead_zone, (stickDeadZone * 100).roundToInt()),
+          style = MaterialTheme.typography.bodyLarge,
+        )
+        Slider(
+          value = stickDeadZone,
+          onValueChange = { stickDeadZone = it; prefs.stickDeadZone = it },
+          valueRange = 0.05f..0.30f,
+        )
+        Text(
+          stringResource(R.string.settings_stick_desc) + " " + stringResource(R.string.settings_applies_next_start),
+          style = MaterialTheme.typography.bodySmall,
+        )
+      }
+      SwitchItem(
+        title = stringResource(R.string.settings_swipe_menu),
+        summary = stringResource(R.string.settings_swipe_menu_desc),
+        checked = swipeMenu,
+        onChange = { swipeMenu = it; prefs.swipeMenuOpen = it },
       )
 
       Section(stringResource(R.string.settings_section_display))
@@ -291,6 +329,15 @@ fun SettingsScreen(
 
       Section(stringResource(R.string.settings_section_graphics))
       Hint(stringResource(R.string.settings_graphics_hint))
+      ListItem(
+        headlineContent = { Text(stringResource(R.string.settings_preset_speed)) },
+        supportingContent = { Text(stringResource(R.string.settings_preset_speed_desc)) },
+        modifier = Modifier.clickable {
+          scale = 1; prefs.renderScale = 1
+          upscale = NativeCoreActivity.UPSCALE_FSR; prefs.upscaleFilter = NativeCoreActivity.UPSCALE_FSR
+          fxaa = false; prefs.fxaa = false
+        },
+      )
       ListItem(
         headlineContent = { Text(stringResource(R.string.settings_scale)) },
         supportingContent = {
@@ -498,7 +545,7 @@ internal val SCALES = (1..4).toList()
 @Composable
 internal fun scaleLabel(value: Int) = if (value == 1) stringResource(R.string.settings_scale_native) else "${value}x"
 
-internal val ASPECTS = listOf("auto", "4:3", "16:9", "stretch")
+internal val ASPECTS = listOf("auto", "4:3", "16:9", "stretch", "fill")
 
 internal val UPSCALERS = listOf(NativeCoreActivity.UPSCALE_BILINEAR, NativeCoreActivity.UPSCALE_FSR, NativeCoreActivity.UPSCALE_SGSR)
 internal val FORMATS = listOf(AppPrefs.FORMAT_NORMAL, AppPrefs.FORMAT_LETTERBOX, AppPrefs.FORMAT_WIDESCREEN)
@@ -583,6 +630,7 @@ internal fun aspectLabel(value: String) = when (value) {
   "4:3" -> R.string.settings_aspect_4_3
   "16:9" -> R.string.settings_aspect_16_9
   "stretch" -> R.string.settings_aspect_stretch
+  "fill" -> R.string.settings_aspect_fill
   else -> R.string.settings_aspect_auto
 }
 

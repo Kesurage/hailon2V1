@@ -1176,6 +1176,19 @@ void hle_present_end(float sx, float sy, bool fxaa, int upscale, bool average, u
                      fabsf(rx - ry) < 0.2f * fminf(rx, ry) &&
                      g_ps.pipe[P_FSR_EASU] && g_ps.pipe[P_FSR_RCAS] &&
                      fsr_target((uint32_t)(vw + 0.5f), (uint32_t)(vh + 0.5f));
+    if (g_ps.have && upscale == HLE_UPSCALE_FSR && !fsr) {
+        /* wanted but not applied: say so once (the user picked FSR and saw
+         * bilinear otherwise, with nothing in the logs) */
+        static bool logged;
+        if (!logged) {
+            logged = true;
+            hle_log("hakuX-hle-back", "present: FSR 1 not applied (%s) — bilinear",
+                    !(g_ps.pipe[P_FSR_EASU] && g_ps.pipe[P_FSR_RCAS])
+                        ? "its shaders or pipelines failed"
+                        : (rx >= 0.99f && ry >= 0.99f) ? "the picture is not smaller than its place"
+                                                       : "the picture is stretched to another shape");
+        }
+    }
     /* The frame's writes need no barrier here: each writer of a display
      * image (the swap's blit, the gamma pass, the overlay) ends with one
      * into SHADER_READ_ONLY over all later commands of the queue, ours too
@@ -1240,7 +1253,7 @@ void hle_present_end(float sx, float sy, bool fxaa, int upscale, bool average, u
             p = P_FSR_RCAS;
             pc[4] = 1.0f / (float)g_ps.fsr_w;
             pc[5] = 1.0f / (float)g_ps.fsr_h;
-            pc[6] = 0.87f;          /* FsrRcasCon's sharpness, 0.2 stops (exp2(-0.2)) */
+            pc[6] = exp2f(-0.87f);  /* FsrRcasCon's sharpness, 0.87 stops — AMD's sample's default */
         } else if ((rx < 0.99f || ry < 0.99f) && upscale == HLE_UPSCALE_SGSR && g_ps.pipe[P_SGSR]) {
             p = P_SGSR;
             pc[4] = 1.0f / (float)g_ps.f.w;

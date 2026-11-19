@@ -18,8 +18,10 @@ bool nc_present_init(void);
  * (the HLE GPU not up yet, no window). */
 bool nc_present_frame(struct ANativeWindow *win);
 /* The picture's shape on screen: the frame's own (auto: 4:3 for 640x480),
- * 4:3, 16:9 (a widescreen title's anamorphic 640x480), or the whole window. */
-enum { NC_ASPECT_AUTO, NC_ASPECT_4_3, NC_ASPECT_16_9, NC_ASPECT_STRETCH };
+ * 4:3, 16:9 (a widescreen title's anamorphic 640x480), the whole window
+ * (stretched), or the window filled (both axes covered, the spill cropped,
+ * undistorted). */
+enum { NC_ASPECT_AUTO, NC_ASPECT_4_3, NC_ASPECT_16_9, NC_ASPECT_STRETCH, NC_ASPECT_FILL };
 void nc_present_set_aspect(int mode);
 /* The console is set to widescreen: auto shows a 4:3-sized frame as 16:9
  * (a widescreen title renders anamorphic into it). */

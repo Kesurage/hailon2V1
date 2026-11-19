@@ -5,6 +5,8 @@ import kotlin.math.abs
 import kotlin.math.max
 
 class SwipeUpGestureRecognizer(
+  /** false: a swipe up (from the bottom); true: a swipe down (from the top). */
+  private val down: Boolean = false,
   private val minDistancePx: () -> Float,
   private val touchSlopPx: () -> Float,
   private val canStartAt: (x: Float, y: Float) -> Boolean,
@@ -62,16 +64,20 @@ class SwipeUpGestureRecognizer(
         val y = event.getY(pointerIndex)
         val dx = x - startX
         val dy = y - startY
-        val upwardDistance = -dy
+        // The gesture's direction: up the screen, or down from the top edge.
+        val along = if (down) dy else -dy
+        // Moved against the gesture (up when swiping down, down when swiping
+        // up) by more than the slop: not the gesture.
+        val against = if (down) -dy else dy
         val slop = touchSlopPx()
 
-        if (dy > slop || abs(dx) > max(slop * 5f, upwardDistance * 0.9f + slop)) {
+        if (against > slop || abs(dx) > max(slop * 5f, along * 0.9f + slop)) {
           reset()
           return false
         }
 
-        if (upwardDistance >= minDistancePx() &&
-          upwardDistance >= abs(dx) * 1.35f) {
+        if (along >= minDistancePx() &&
+          along >= abs(dx) * 1.35f) {
           triggered = true
           tracking = false
           onTriggered()

@@ -90,7 +90,7 @@ class AppPrefs(context: Context) {
     get() = sp.getInt(NativeCoreActivity.PREF_SCALE, NativeCoreActivity.DEFAULT_SCALE)
     set(value) = sp.edit { putInt(NativeCoreActivity.PREF_SCALE, value) }
 
-  /** The picture's shape: auto, 4:3, 16:9 or stretch (read at game start). */
+  /** The picture's shape: auto, 4:3, 16:9, stretch or fill (read at game start). */
   var aspectRatio: String
     get() = sp.getString(NativeCoreActivity.PREF_ASPECT, NativeCoreActivity.ASPECT_AUTO) ?: NativeCoreActivity.ASPECT_AUTO
     set(value) = sp.edit { putString(NativeCoreActivity.PREF_ASPECT, value) }
@@ -99,6 +99,22 @@ class AppPrefs(context: Context) {
   var fxaa: Boolean
     get() = sp.getBoolean(NativeCoreActivity.PREF_FXAA, false)
     set(value) = sp.edit { putBoolean(NativeCoreActivity.PREF_FXAA, value) }
+
+  /** The on-screen sticks' response: 1.0 linear from the dead zone's edge to
+   * the rim; under, gentler; over, full tilt sooner (read at game start). */
+  var stickSensitivity: Float
+    get() = sp.getFloat(NativeCoreActivity.PREF_STICK_SENSITIVITY, 1.0f)
+    set(value) = sp.edit { putFloat(NativeCoreActivity.PREF_STICK_SENSITIVITY, value) }
+
+  /** How far from the stick's centre a touch is ignored, of its radius (read at game start). */
+  var stickDeadZone: Float
+    get() = sp.getFloat(NativeCoreActivity.PREF_STICK_DEAD_ZONE, 0.15f)
+    set(value) = sp.edit { putFloat(NativeCoreActivity.PREF_STICK_DEAD_ZONE, value) }
+
+  /** A swipe up from the bottom (or down from the top) over the picture opens the menu. */
+  var swipeMenuOpen: Boolean
+    get() = sp.getBoolean(NativeCoreActivity.PREF_SWIPE_MENU, true)
+    set(value) = sp.edit { putBoolean(NativeCoreActivity.PREF_SWIPE_MENU, value) }
 
   /** How a picture smaller than the screen is scaled up: bilinear or sgsr (read at game start). */
   var upscaleFilter: String

@@ -1,6 +1,8 @@
 package com.rfandango.haku_x
 
 import android.content.Context
+import android.graphics.Bitmap
+import android.graphics.BitmapFactory
 import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.DashPathEffect
@@ -8,6 +10,7 @@ import android.graphics.Paint
 import android.graphics.PointF
 import android.graphics.RectF
 import android.graphics.RenderNode
+import android.net.Uri
 import android.os.Build
 import android.os.SystemClock
 import android.util.AttributeSet
@@ -15,12 +18,15 @@ import android.view.MotionEvent
 import android.view.View
 import android.view.ViewConfiguration
 import androidx.annotation.RequiresApi
+import com.rfandango.haku_x.data.AppPrefs
 import com.rfandango.haku_x.overlay.ControlId
 import com.rfandango.haku_x.overlay.ControlKind
 import com.rfandango.haku_x.overlay.ControlPainter
 import com.rfandango.haku_x.overlay.ControlSpec
+import com.rfandango.haku_x.overlay.ControlStyle
 import com.rfandango.haku_x.overlay.OverlayLayout
 import com.rfandango.haku_x.overlay.OverlayStore
+import java.io.File
 import kotlin.math.abs
 import kotlin.math.atan2
 import kotlin.math.ceil
@@ -76,10 +82,14 @@ class OnScreenController @JvmOverloads constructor(
   var drawGate: ((Long) -> Boolean)? = null
 
   private var listener: ControllerListener? = null
-  private val painter = ControlPainter()
+  private val painter = ControlPainter(context)
   private var layout: OverlayLayout? = null
   private var defaults: OverlayLayout? = null
   private val density = resources.displayMetrics.density
+  /** The sticks' response and the menu gesture, as the settings keep them
+   * (read through the process's cached copy: a change applies at the next
+   * game start, like the other settings the core reads). */
+  private val prefs = AppPrefs(context)
 
   // ---------------------------------------------------------------- playing
   private val held = HashMap<ControlId, Int>()          /* button controls: the pointer holding each */
@@ -116,6 +126,19 @@ class OnScreenController @JvmOverloads constructor(
     minDistancePx = { max(height * 0.14f, touchSlop * 8f) },
     touchSlopPx = { touchSlop },
     canStartAt = { x, y -> y >= height * 0.35f && hit(x, y) == null },
+    onTriggered = {
+      releaseAll()
+      onMenuButtonTapped?.invoke()
+      invalidate()
+    },
+  )
+  /* Down from the top edge too: the bottom is where the thumb plays on a
+   * landscape phone. */
+  private val swipeDown = SwipeUpGestureRecognizer(
+    down = true,
+    minDistancePx = { max(height * 0.14f, touchSlop * 8f) },
+    touchSlopPx = { touchSlop },
+    canStartAt = { x, y -> y <= height * 0.18f && hit(x, y) == null },
     onTriggered = {
       releaseAll()
       onMenuButtonTapped?.invoke()
@@ -392,7 +415,7 @@ class OnScreenController @JvmOverloads constructor(
   // ---------------------------------------------------------------- playing
 
   private fun playTouch(event: MotionEvent) {
-    if (swipeUp.onTouchEvent(event)) {
+    if (prefs.swipeMenuOpen && (swipeDown.onTouchEvent(event) || swipeUp.onTouchEvent(event))) {
       return
     }
     val index = event.actionIndex
@@ -504,6 +527,7 @@ class OnScreenController @JvmOverloads constructor(
 
   private fun releaseAll() {
     swipeUp.reset()
+    swipeDown.reset()
     menuPressed = false
     menuPointer = -1
     for (i in 0..1) {
@@ -558,15 +582,17 @@ class OnScreenController @JvmOverloads constructor(
       dx /= m
       dy /= m
     }
-    if (m <= STICK_DEAD_ZONE) {
+    val dead = prefs.stickDeadZone
+    if (m <= dead) {
       dx = 0f
       dy = 0f
     } else {
-      // Smoothly from the dead zone's edge (0) to full deflection a little
-      // inside the rim: no jump where the dead zone ends, and a thumb that
-      // lands short of the rim still reaches full tilt.
-      val t = ((m - STICK_DEAD_ZONE) / (STICK_FULL - STICK_DEAD_ZONE)).coerceAtMost(1f)
-      val scale = t / m
+      // A smooth ramp from the dead zone's edge (0) to the rim (1): no jump
+      // where the dead zone ends, unlike a hard cut to the raw deflection.
+      // Sensitivity bends the ramp — 1.0 linear, under it gentler, over it
+      // full tilt sooner (the sliders in Settings → Controls).
+      val k = ((m - dead) / (1f - dead) * prefs.stickSensitivity).coerceIn(0f, 1f)
+      val scale = k / m
       dx *= scale
       dy *= scale
     }
@@ -817,16 +843,81 @@ class OnScreenController @JvmOverloads constructor(
   fun reloadLayout() {
     if (width == 0 || height == 0) return
     layout = OverlayStore.load(context, width.toFloat(), height.toFloat())
+    painter.invalidateIcons()
     select(null)
     onLayoutChanged?.invoke()
     invalidate()
   }
 
+  /** Whether the editor's icon actions apply to the control (buttons do;
+   * sticks, the D-pad and the menu keep their own looks). */
+  fun styleable(id: ControlId) = when (id.kind) {
+    ControlKind.STICK, ControlKind.DPAD, ControlKind.MENU -> false
+    else -> true
+  }
+
+  /** The selected control's look cycles (the editor's Icon action): jewel,
+   * disc, ring, and the user's picture when one is set. */
+  fun cycleSelectedStyle() {
+    val id = selected ?: return
+    if (!styleable(id)) return
+    val s = layout?.get(id) ?: return
+    var next = ControlStyle.entries[(s.style.ordinal + 1) % ControlStyle.entries.size]
+    if (next == ControlStyle.PHOTO && OverlayStore.iconFile(context, id) == null) {
+      next = ControlStyle.JEWEL      /* no picture picked yet: skip it */
+    }
+    s.style = next
+    onLayoutChanged?.invoke()
+    invalidate()
+  }
+
+  /** Keeps the picture the picker brought (or drops it, null) for the selected
+   * control, drawn as its icon (ControlStyle.PHOTO). */
+  fun setIconImage(uri: Uri?) {
+    val id = selected ?: return
+    if (!styleable(id)) return
+    if (uri == null) {
+      OverlayStore.clearIcon(context, id)
+    } else {
+      val dir = File(context.filesDir, "overlay_icons")
+      dir.mkdirs()
+      val bmp = try {
+        context.contentResolver.openInputStream(uri)?.use { BitmapFactory.decodeStream(it) }
+      } catch (_: Exception) {
+        null
+      } ?: return
+      val big = maxOf(bmp.width, bmp.height)
+      val scaled = if (big > 256) {
+        val k = 256f / big
+        Bitmap.createScaledBitmap(bmp, (bmp.width * k).toInt().coerceAtLeast(1), (bmp.height * k).toInt().coerceAtLeast(1), true)
+      } else {
+        bmp
+      }
+      try {
+        File(dir, id.name + ".png").outputStream().use { scaled.compress(Bitmap.CompressFormat.PNG, 90, it) }
+      } catch (_: Exception) {
+        return
+      }
+      if (scaled != bmp) bmp.recycle()
+    }
+    layout?.get(id)?.style = if (uri == null) ControlStyle.JEWEL else ControlStyle.PHOTO
+    painter.invalidateIcons()
+    onLayoutChanged?.invoke()
+    invalidate()
+  }
+
+  /** The selected control goes back to the jewel; its picture goes. */
+  fun clearSelectedIcon() {
+    val id = selected ?: return
+    if (!styleable(id)) return
+    OverlayStore.clearIcon(context, id)
+    layout?.get(id)?.style = ControlStyle.JEWEL
+    painter.invalidateIcons()
+    onLayoutChanged?.invoke()
+    invalidate()
+  }
+
   private companion object {
-    const val STICK_DEAD_ZONE = 0.15f
-    /** Where a drag counts as full deflection, of the stick's radius: a thumb
-     * rarely lands exactly on the rim. */
-    const val STICK_FULL = 0.85f
     val ACCENT = 0xFF8BC34A.toInt()
     val DPAD_BUTTONS = listOf(
       ControlPainter.DPAD_UP to Button.DPAD_UP,

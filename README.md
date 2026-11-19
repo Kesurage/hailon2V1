@@ -36,28 +36,33 @@ v1.3.0 release, and adds:
   GitHub Release on every `v*` tag. The in-app updater follows this
   repository's releases.
 
-## v1.4.0 — the launcher release
+## v1.5.0 — what 1.4.0's feedback asked for
 
-- **AMD FidelityFX Super Resolution 1.0** (EASU + RCAS, from AMD's
-  FidelityFX-FSR, MIT — `licenses/fsr1.license.txt`) as a third upscaling
-  filter: Settings → Graphics → Upscaling filter. On the Helio G100's
-  two-core Mali-G57, **1x resolution + FSR 1** is the speed preset — the
-  frame is edge-rebuilt at the panel's size instead of bilinear-blurred —
-  and 2x/3x + FSR is the quality one. FSR replaces FXAA while it runs
-  (RCAS sharpens).
-- **Touch sticks fixed**: the dead zone used to jump straight from zero to
-  the raw deflection; it now ramps smoothly from its edge, and full
-  deflection is reached a little inside the rim, where a thumb actually
-  lands. The overlay editor (move, resize, hide, per-control opacity) and
-  the jewel-style icons are hakuX's own and stay.
-- **HUD = FPS only**: the debug hitch monitor is off by default now (the
-  toggle remains in the settings); the FPS counter stays.
-- Full-screen with the notch (`shortEdges`) and the panel's native
-  resolution path were already hakuX master's — nothing was lost in the fork.
-- **Custom Vulkan drivers** (a panvk build among them) load through
-  Settings → GPU driver on phones with `/dev/mali0` — the stock MediaTek
-  driver remains the default; panvk is an experiment for the G57, not a
-  requirement.
+- **Fill (crop) aspect mode** — the real answer to "full screen doesn't fill
+  and stretch distorts": Settings → Display → Picture shape → *Fill (crop the
+  edges)*. Both axes are covered at the same scale (no distortion), the spill
+  over the panel's shape is cropped, centred. `stretch` stays for those who
+  want every pixel squashed.
+- **Custom icon controls** — the editor bar's new Icon actions (Settings →
+  On-screen controls, or the in-game editor): cycle a button's look between
+  the jewel, a flat disc, a thin ring, or **your own picture** (Photo… from
+  the gallery, kept in the app's storage, drawn circle-cropped at the
+  control's place and size). Sticks, the D-pad and the menu keep their own
+  looks.
+- **Touch sensitivity you calibrate** — the 1.4.0 curve was too aggressive;
+  it is back to neutral (linear from the dead zone's edge to the rim — the
+  1.3.1-style jump is still gone) with two new sliders in Settings →
+  Controls: **Stick sensitivity** (0.5–1.6×) and **dead zone** (5–30%).
+- **Swipe gestures** — swipe up from the bottom of the picture *or down from
+  the top* opens the menu (a switch in Settings → Controls turns it off);
+  it never starts on a control, so playing with thumbs on the edges is safe.
+- **FSR 1 made honest** — the shaders were proven valid (glslang), the
+  RCAS sharpness set to AMD's sample default (clearly visible), and when
+  FSR can't apply (a scale where the picture isn't smaller than the screen,
+  or a stretched shape) the core now logs why instead of silently falling
+  back, and the settings say FSR applies "always true at scale 1x".
+- **Performance preset** — one tap in Settings → Graphics: scale 1x + FSR 1
+  + FXAA off.
 
 ### To do (not in this release)
 
@@ -66,6 +71,26 @@ v1.3.0 release, and adds:
   tooling upstream).
 - MSAA as a quality option; per-game FSR sharpness.
 - A panvk driver package for the G57 to try from the settings.
+
+## v1.4.0 — FSR 1.0, touch sticks, HUD
+
+- **AMD FidelityFX Super Resolution 1.0** (EASU + RCAS, from AMD's
+  FidelityFX-FSR, MIT — `licenses/fsr1.license.txt`) as a third upscaling
+  filter: Settings → Graphics → Upscaling filter. On the Helio G100's
+  two-core Mali-G57, **1x resolution + FSR 1** is the speed preset — the
+  frame is edge-rebuilt at the panel's size instead of bilinear-blurred —
+  and 2x/3x + FSR is the quality one. FSR replaces FXAA while it runs
+  (RCAS sharpens).
+- **Touch sticks**: the dead zone no longer jumps (a smooth ramp from its
+  edge to the rim).
+- **HUD = FPS only**: the debug hitch monitor is off by default now (the
+  toggle remains in the settings); the FPS counter stays.
+- Full-screen with the notch (`shortEdges`) and the panel's native
+  resolution path were already hakuX master's — nothing was lost in the fork.
+- **Custom Vulkan drivers** (a panvk build among them) load through
+  Settings → GPU driver on phones with `/dev/mali0` — the stock MediaTek
+  driver remains the default; panvk is an experiment for the G57, not a
+  requirement.
 
 The earlier hailon2V1 launcher skeleton (a UI mock with stubs) is kept under
 `launcher/` (its workflow only runs on changes there).

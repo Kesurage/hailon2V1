@@ -5,8 +5,9 @@
  *   argv[2]  the hard disk folder (Partition0-5 and the raw sector files)
  *   argv[3+] options: the core's (native/core/options.h: "uncap",
  *            "loadstate=", "scale=", "video=", "asyncpipe=", "mods=", ...),
- *            and the window's: "aspect=auto|4:3|16:9|stretch" the picture's
- *            shape, "fxaa=0|1" FXAA over each frame and
+ *            and the window's: "aspect=auto|4:3|16:9|stretch|fill" the
+ *            picture's shape (fill: both axes covered, the spill cropped,
+ *            undistorted), "fxaa=0|1" FXAA over each frame and
  *            "upscale=bilinear|fsr|sgsr" how a frame smaller than its place
  *            on screen is scaled up (fsr: AMD FidelityFX Super Resolution 1,
  *            EASU then RCAS); "padinput=sdl" the legacy input (the first
@@ -566,6 +567,7 @@ EXPORT int SDL_main(int argc, char *argv[])
             nc_present_set_aspect(!strcmp(a, "4:3")       ? NC_ASPECT_4_3
                                   : !strcmp(a, "16:9")    ? NC_ASPECT_16_9
                                   : !strcmp(a, "stretch") ? NC_ASPECT_STRETCH
+                                  : !strcmp(a, "fill")    ? NC_ASPECT_FILL
                                                           : NC_ASPECT_AUTO);
             nc_log("hakuX-app", "aspect ratio %s", a);
         }
