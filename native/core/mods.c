@@ -247,35 +247,126 @@ static void patch_update(NcDisc *disc, const char *xbe, const char *mod, uint32_
     }
 }
 
-/* "0x0011A2B4: 90 90" or "0x0011A2B4: 74 05 -> EB 05"; a mod that is off
- * (on false) is only remembered, with the disc's bytes */
-static void patch(NcDisc *disc, const char *xbe, const char *mod, const char *line, bool on)
+/* "0x0011A2B4: 90 90" or "0x0011A2B4: 74 05 -> EB 05": the address, the
+ * bytes to write and (after "->") the ones to check for first. False: not a
+ * patch line. */
+static bool patch_parse(const char *line, uint32_t *va, uint8_t *old, unsigned *nold, uint8_t *neu,
+                        unsigned *nnew)
 {
     char *colon;
-    const uint32_t va = (uint32_t)strtoul(line, &colon, 0);
+    *va = (uint32_t)strtoul(line, &colon, 0);
     while (*colon == ' ') {
         colon++;
     }
-    uint8_t old[256], neu[256];
     const char *p = colon;
-    unsigned nold = 0, nnew = 0;
+    *nold = *nnew = 0;
     if (*colon == ':') {
-        nnew = hex_bytes(colon + 1, neu, sizeof(neu), &p);
+        *nnew = hex_bytes(colon + 1, neu, 256, &p);
         while (*p == ' ' || *p == '\t') {
             p++;
         }
         if (p[0] == '-' && p[1] == '>') {
-            memcpy(old, neu, nnew);
-            nold = nnew;
-            nnew = hex_bytes(p + 2, neu, sizeof(neu), &p);
+            memcpy(old, neu, *nnew);
+            *nold = *nnew;
+            *nnew = hex_bytes(p + 2, neu, 256, &p);
         }
         while (*p == ' ' || *p == '\t') {
             p++;
         }
     }
+    return *colon == ':' && *nnew && (!*nold || *nold == *nnew) && (!*p || *p == '#');
+}
+
+/* A patch line's place (its mod, XBE and address), for the all-or-nothing
+ * check below. */
+typedef struct PatchPlace {
+    char *mod;
+    char xbe[128];
+    uint32_t va;
+    bool match;                     /* one of its lines checks out */
+    struct PatchPlace *next;
+} PatchPlace;
+
+static PatchPlace *g_places;
+
+static void place_free(void)
+{
+    while (g_places) {
+        PatchPlace *p = g_places;
+        g_places = p->next;
+        free(p->mod);
+        free(p);
+    }
+}
+
+static PatchPlace *place_find(const char *mod, const char *xbe, uint32_t va)
+{
+    for (PatchPlace *p = g_places; p; p = p->next) {
+        if (p->va == va && !strcmp(p->mod, mod) && !strcmp(p->xbe, xbe)) {
+            return p;
+        }
+    }
+    PatchPlace *p = calloc(1, sizeof(*p));
+    if (p && (p->mod = strdup(mod))) {
+        snprintf(p->xbe, sizeof(p->xbe), "%s", xbe);
+        p->va = va;
+        p->next = g_places;
+        g_places = p;
+    } else {
+        free(p);
+        p = NULL;
+    }
+    return p;
+}
+
+/* Whether a patch line's checked bytes are what its XBE has: false only
+ * where the file is there to read and its bytes differ (the wrong disc
+ * revision); a place whose file isn't there — no title update installed,
+ * the XBE not on the disc — or a line without bytes to check counts as
+ * matching: the apply path says the same about it. */
+static bool patch_match(NcDisc *disc, const char *xbe, uint32_t va, const uint8_t *old,
+                        unsigned nold)
+{
+    if (!nold) {
+        return true;
+    }
+    if (is_update(xbe)) {
+        char host[320];
+        HleXbeInfo x;
+        uint32_t off;
+        uint8_t cur[256];
+        if (!update_host(disc, xbe, host, sizeof(host)) || !host_xbe_info(host, &x) ||
+            !xbe_offset(&x, va, nold, &off)) {
+            return true;
+        }
+        return !host_read(host, off, cur, nold) || !memcmp(cur, old, nold);
+    }
+    HleXbeInfo x;
+    if (!xbe_info(disc, xbe, &x)) {
+        return true;
+    }
+    uint32_t off;
+    if (!xbe_offset(&x, va, nold, &off)) {
+        return true;
+    }
+    NcDiscFile f;
+    uint8_t cur[256];
+    if (!nc_disc_find(disc, xbe, &f) || !nc_disc_read(disc, &f, off, cur, nold)) {
+        return true;
+    }
+    return !memcmp(cur, old, nold);
+}
+
+/* "0x0011A2B4: 90 90" or "0x0011A2B4: 74 05 -> EB 05"; a mod that is off
+ * (on false) is only remembered, with the disc's bytes */
+static void patch(NcDisc *disc, const char *xbe, const char *mod, const char *line, bool on)
+{
+    uint32_t va;
+    uint8_t old[256], neu[256];
+    unsigned nold, nnew;
     HleXbeInfo x;
     uint32_t off;
-    if (*colon != ':' || !nnew || (nold && nold != nnew) || (*p && *p != '#')) {
+    if (!patch_parse(line, &va, old, &nold, neu, &nnew)) {
         nc_log("hakuX-native-mods", "%s: [%s] \"%s\": not a patch", mod, xbe, line);
     } else if (is_update(xbe)) {
         patch_update(disc, xbe, mod, va, old, nold, neu, nnew, on);
@@ -493,6 +584,71 @@ static char *field(char **s)
     return f;
 }
 
+/* A mod's patch places counted together, for the all-or-nothing decision:
+ * a mod whose places half or more don't match the disc is left off
+ * entirely. One place of many not matching is another mod's overlap (the
+ * bytes moved under it) and stays as it was: the line skips and logs. */
+typedef struct ModStat {
+    char *name;
+    unsigned total, bad;
+    struct ModStat *next;
+} ModStat;
+
+static void mods_stats_free(ModStat *stats)
+{
+    while (stats) {
+        ModStat *s = stats;
+        stats = s->next;
+        free(s->name);
+        free(s);
+    }
+}
+
+/* The mods left off entirely (another release of the game: its places'
+ * bytes are not this disc's), from the places pass 1 gathered; their lines
+ * apply none of themselves, for a half-patched game glitches where its
+ * code and its data disagree. NULL-terminated, g_free-able. */
+static char **dead_mods(unsigned *n)
+{
+    ModStat *stats = NULL;
+    for (PatchPlace *p = g_places; p; p = p->next) {
+        ModStat *s = stats;
+        while (s && strcmp(s->name, p->mod)) {
+            s = s->next;
+        }
+        if (!s) {
+            s = calloc(1, sizeof(*s));
+            if (!s || !(s->name = strdup(p->mod))) {
+                free(s);
+                continue;
+            }
+            s->next = stats;
+            stats = s;
+        }
+        s->total++;
+        s->bad += !p->match;
+    }
+    char **dead = NULL;
+    unsigned nd = 0;
+    for (ModStat *s = stats; s; s = s->next) {
+        if (s->total && s->bad * 2 >= s->total) {
+            char **more = realloc(dead, (nd + 2) * sizeof(*dead));
+            if (more && (more[nd] = strdup(s->name))) {
+                dead = more;
+                dead[++nd] = NULL;
+                nc_log("hakuX-native-mods", "%s: %u of %u patch places hold other bytes on this "
+                       "disc — the mod is left off entirely (another release of the game?)",
+                       s->name, s->bad, s->total);
+            } else {
+                free(more);
+            }
+        }
+    }
+    mods_stats_free(stats);
+    *n = nd;
+    return dead;
+}
+
 void nc_mods_install(NcDisc *disc)
 {
     if (!g_manifest[0]) {
@@ -506,6 +662,9 @@ void nc_mods_install(NcDisc *disc)
     char line[1024];
     unsigned files = 0, bad = 0, lines = 0;
     bool sealed = false, have_cheat = false;
+    /* Pass 1: the files onto the disc, and every mod's patch places
+     * checked against it (nothing of a mod applies until its places are
+     * known whole — see dead_mods). */
     while (fgets(line, sizeof(line), fp)) {
         line[strcspn(line, "\r\n")] = 0;
         char *s = line;
@@ -529,9 +688,37 @@ void nc_mods_install(NcDisc *disc)
             nc_disc_overlay_seal(disc);
             sealed = true;
         }
+        if (!strcmp(kind, "patch")) {
+            const char *xbe = field(&s), *mod = field(&s);
+            uint32_t va;
+            uint8_t old[256], neu[256];
+            unsigned nold, nnew;
+            if (patch_parse(s, &va, old, &nold, neu, &nnew)) {
+                PatchPlace *p = place_find(mod, xbe, va);
+                if (p && !p->match && patch_match(disc, xbe, va, old, nold)) {
+                    p->match = true;
+                }
+            }
+        }
+    }
+    unsigned ndead = 0;
+    char **dead = dead_mods(&ndead);
+    place_free();
+    /* Pass 2: the patches of the mods that hold, and the cheats. */
+    rewind(fp);
+    while (fgets(line, sizeof(line), fp)) {
+        line[strcspn(line, "\r\n")] = 0;
+        char *s = line;
+        const char *kind = field(&s);
         if (!strcmp(kind, "patch") || !strcmp(kind, "patchoff")) {
             const char *xbe = field(&s), *mod = field(&s);
-            patch(disc, xbe, mod, s, kind[5] != 'o');
+            bool off = false;
+            for (unsigned i = 0; dead && dead[i]; i++) {
+                off |= !strcmp(dead[i], mod);
+            }
+            if (!off) {
+                patch(disc, xbe, mod, s, kind[5] != 'o');
+            }
         } else if (!strcmp(kind, "cheat")) {
             const bool on = atoi(field(&s)) != 0, once = atoi(field(&s)) != 0;
             have_cheat = nc_cheat_add(s, on, once) >= 0;
@@ -546,6 +733,10 @@ void nc_mods_install(NcDisc *disc)
         }
     }
     fclose(fp);
+    for (unsigned i = 0; dead && dead[i]; i++) {
+        free(dead[i]);
+    }
+    free(dead);
     if (!sealed) {
         nc_disc_overlay_seal(disc);
     }

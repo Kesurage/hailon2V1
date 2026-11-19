@@ -49,19 +49,42 @@ object ModCatalog {
 
   private fun folder(context: Context, gameKey: String) = folders(context)[gameKey.uppercase(Locale.ROOT)]
 
+  /**
+   * The folder a disc's mods come from: its own release's, else another
+   * release of the same title. A disc's certificate version differs from
+   * the one the repository has a folder for while its game is the same
+   * build (Halo 2's pressings differ in it) — and the core checks every
+   * patch's bytes before applying, a mod of another release left whole and
+   * off with a log line, so nothing half-applies. Cheats never come from
+   * another release's folder: their addresses hold for one release alone,
+   * and a cheat has no bytes to check.
+   */
+  private fun modsFolder(context: Context, gameKey: String): String? {
+    val key = gameKey.uppercase(Locale.ROOT)
+    folders(context)[key]?.let { return it }
+    val title = key.substringBefore('.')
+    /* more than one: the latest release's folder */
+    return folders(context).keys.filter { it.substringBefore('.') == title }.maxByOrNull {
+      it.substringAfter('.', "0").toIntOrNull() ?: 0
+    }?.let { folders(context)[it] }
+  }
+
   /** Whether the disc with this game key has mods or cheats (its own or imported). */
   fun has(context: Context, gameKey: String) =
-    folder(context, gameKey) != null || UserMods.list(context, gameKey).isNotEmpty()
+    modsFolder(context, gameKey) != null || UserMods.list(context, gameKey).isNotEmpty()
 
   /** The disc's mods (by folder name; the app's own, then the imported ones) and cheats (in file order). */
   fun load(context: Context, gameKey: String): GameMods {
-    val dir = folder(context, gameKey)
+    val dir = modsFolder(context, gameKey)
     val mods = if (dir == null) mutableListOf() else
       am(context).list("$ROOT/$dir").orEmpty().sorted().mapNotNull { id ->
         text(am(context), "$ROOT/$dir/$id/mod.txt")?.let { parseMod(id, it) }
       }.toMutableList()
     mods += UserMods.list(context, gameKey)
-    val cheats = dir?.let { text(am(context), "$ROOT/$it/cheats.txt") }?.let { parseCheats(it) }.orEmpty()
+    /* the cheats of the disc's own release only (another release's would
+     * poke this one's memory unchecked) */
+    val cheats = folder(context, gameKey)?.let { text(am(context), "$ROOT/$it/cheats.txt") }
+      ?.let { parseCheats(it) }.orEmpty()
     return GameMods(mods, cheats)
   }
 
@@ -146,7 +169,7 @@ object ModCatalog {
    * paths and host files.
    */
   fun extract(context: Context, gameKey: String, mod: String): List<Pair<String, File>> {
-    val dir = folder(context, gameKey) ?: return emptyList()
+    val dir = modsFolder(context, gameKey) ?: return emptyList()
     val am = context.assets
     val src = "$ROOT/$dir/$mod/files"
     val dst = File(context.filesDir, "mods/${gameKey.uppercase(Locale.ROOT)}/$mod")
@@ -253,6 +276,7 @@ object ModRun {
     if (game.isEmpty && !native) return null
     val choices = ModChoices(context, gameKey)
     val lines = mutableListOf<String>()
+    val fileMods = mutableListOf<Pair<String, File>>()
     val on = game.mods.filter { choices.mod(it.id) }
     for (mod in on) {
       val files = if (mod.id.startsWith(UserMods.PREFIX)) {
@@ -261,6 +285,7 @@ object ModRun {
         ModCatalog.extract(context, gameKey, mod.id)
       }
       for ((disc, file) in files) {
+        fileMods += disc to file
         lines += "file\t${disc.replace('/', '\\')}\t${file.absolutePath}"
       }
     }
@@ -286,9 +311,36 @@ object ModRun {
     val file = File(context.filesDir, "native/mods.txt")
     file.parentFile?.mkdirs()
     file.writeText(lines.joinToString("\n", postfix = "\n"))
+    mapCacheClear(context, gameKey, fileMods)
     Log.i(TAG, "$gameKey: ${on.size} of ${game.mods.size} mods on, ${game.cheats.size} cheats" +
       (if (native) ", native camera ${if (onCamera) "on" else "off"}" else ""))
     return file to game.cheats
+  }
+
+  /**
+   * Halo 2 caches its maps on the console's cache drives (X:, Y:, Z:) and
+   * loads them from the cache while it holds, not from the disc again: a
+   * modded map over the disc's file shows only once that cache is cleared —
+   * the first thing a modded Xbox asked of its player. The drives are the
+   * core's hdd/Partition3..5 (made again at each boot), and they are
+   * cleared whenever the files the mods put over the disc change between
+   * runs — a mod added or removed, or the file behind one — so what the
+   * game cached is always what the mods give it.
+   */
+  private fun mapCacheClear(context: Context, gameKey: String, files: List<Pair<String, File>>) {
+    val stamp = gameKey + "\n" + files.joinToString("\n") { (disc, host) ->
+      "$disc|${host.length}|${host.lastModified()}"
+    }
+    val file = File(context.filesDir, "native/mods_files.stamp")
+    if (file.isFile && file.readText() == stamp) {
+      return
+    }
+    for (p in 3..5) {
+      File(File(context.filesDir, "native/hdd"), "Partition$p").deleteRecursively()
+    }
+    file.parentFile?.mkdirs()
+    file.writeText(stamp)
+    Log.i(TAG, "map cache cleared (${files.size} files over the disc)")
   }
 
   /* The phone's panel, at its longest over its shortest: the window lies

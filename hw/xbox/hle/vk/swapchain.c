@@ -107,6 +107,9 @@ static struct {
     bool gen_pending;
     unsigned idle_refreshes;
     uint64_t drawn_serial;
+    /* whether the game runs solidly behind the display (see gen_below) */
+    bool gen_run;
+    float gen_idle;                 /* idle refreshes per frame, smoothed */
     /* FXAA's and a blend's image, the frame's size */
     VkImage fx_img;
     VkDeviceMemory fx_mem;
@@ -994,6 +997,31 @@ bool hle_present_begin(struct ANativeWindow *win, uint32_t *w, uint32_t *h)
     return true;
 }
 
+/*
+ * Whether the game runs solidly behind the display, frame generation's
+ * ground: idle_refreshes at each new frame, smoothed (a quarter of the way
+ * to each), hysteresis around the thresholds. Blending when the game only
+ * grazes the display's rate — a frame late here and there — showed a ghost
+ * on and off through otherwise whole frames, and the frame after each ghost
+ * a refresh late: flicker and stutter, worse than nothing. At half rate and
+ * below (30 fps on 60, 60 on 120) the count sits at one and more, and the
+ * blends come every frame; a game that keeps up never leaves a refresh
+ * empty and this stays off, as if frame generation were off.
+ */
+static bool gen_below(bool framegen, unsigned idle)
+{
+    if (!framegen) {
+        return false;
+    }
+    g_ps.gen_idle += 0.25f * ((float)idle - g_ps.gen_idle);
+    if (g_ps.gen_idle >= 0.6f) {
+        g_ps.gen_run = true;
+    } else if (g_ps.gen_idle < 0.3f) {
+        g_ps.gen_run = false;
+    }
+    return g_ps.gen_run;
+}
+
 bool hle_present_frame(uint32_t *w, uint32_t *h)
 {
     hle_disp_use_begin();               /* the slots' images stay until the submit */
@@ -1006,9 +1034,12 @@ bool hle_present_frame(uint32_t *w, uint32_t *h)
     if (hle_disp_acquire(&f) && (!g_ps.have || f.slot != g_ps.f.slot)) {
         /* a new frame. Frame generation holds the one before it one present
          * longer (the blend's other half), and only while the game runs
-         * behind the display — at its rate the second slot would be the
-         * render thread's (display.h), and the blend never shows anyway. */
-        const bool hold = g_ps.framegen && g_ps.have && g_ps.idle_refreshes > 0;
+         * solidly behind the display (gen_below) and this frame left a
+         * refresh empty behind it — at the display's rate the second slot
+         * would be the render thread's (display.h), and the blend never
+         * shows anyway. */
+        const bool behind = g_ps.idle_refreshes > 0;
+        const bool hold = behind && gen_below(g_ps.framegen, g_ps.idle_refreshes) && g_ps.have;
         if (hold) {
             if (g_ps.have_prev) {
                 hle_disp_release(g_ps.fprev.slot);
@@ -1038,13 +1069,17 @@ bool hle_present_frame(uint32_t *w, uint32_t *h)
 void hle_present_set_framegen(bool on)
 {
     g_ps.framegen = on;
-    if (!on && g_ps.have_prev) {
-        if (!g_ps.using) {
-            hle_disp_release(g_ps.fprev.slot);
+    if (!on) {
+        if (g_ps.have_prev) {
+            if (!g_ps.using) {
+                hle_disp_release(g_ps.fprev.slot);
+            }
+            g_ps.have_prev = false;
         }
-        g_ps.have_prev = false;
+        g_ps.gen_pending = false;
+        g_ps.gen_run = false;
+        g_ps.gen_idle = 0.0f;
     }
-    g_ps.gen_pending = false;
 }
 
 /* The mid image at the frame's size: FXAA's filtered frame, or frame
@@ -1250,19 +1285,21 @@ void hle_present_end(float sx, float sy, bool fxaa, int upscale, bool average, f
     VkImageView src = g_ps.have ? g_ps.f.view : VK_NULL_HANDLE;
     bool fxaa_done = false;
     /*
-     * Frame generation 2x. While the game runs behind the display (it left
-     * a refresh empty: idle_refreshes), each new frame is shown first as the
-     * blend of it and the one before — the picture halfway between, one
-     * refresh early — and then as itself at the next refresh (gen_pending),
-     * which hle_present_unchanged sends around. A game that keeps up with
-     * the display never blends: every refresh has a new frame, and this is
-     * all exactly as before.
+     * Frame generation 2x. While the game runs solidly behind the display
+     * (gen_run) and a frame arrives with a refresh empty behind it, that
+     * frame is shown first as the blend of it and the one before — the
+     * picture halfway between, one refresh early — and then as itself at
+     * the next refresh (gen_pending), which hle_present_unchanged sends
+     * around. A game that keeps up with the display, or only grazes it,
+     * never blends: every refresh has a new frame or holds the last one,
+     * and this is all exactly as before.
      */
     const bool newf = g_ps.serial != g_ps.drawn_serial;
     bool blend = false;
     if (g_ps.framegen && g_ps.gen_pending) {
         g_ps.gen_pending = false;      /* the frame itself, after its blend */
-    } else if (g_ps.framegen && newf && g_ps.idle_refreshes > 0 && g_ps.have && g_ps.have_prev &&
+    } else if (g_ps.framegen && newf && g_ps.idle_refreshes > 0 && g_ps.gen_run && g_ps.have &&
+               g_ps.have_prev &&
                g_ps.f.w == g_ps.fprev.w && g_ps.f.h == g_ps.fprev.h && g_ps.pipe[P_GEN] &&
                fxaa_target(g_ps.f.w, g_ps.f.h)) {
         barrier(cb, g_ps.fx_img, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,

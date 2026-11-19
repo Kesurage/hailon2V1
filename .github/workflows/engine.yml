@@ -95,39 +95,47 @@ jobs:
           TAG="${GITHUB_REF#refs/tags/}"
           V="${{ env.VERSION }}"
           cat > release-notes.md <<EOF
-          hailon2V1 ${{ env.VERSION }} — frame generation 2x, the menu out of the thumbs' way
+          hailon2V1 0002E — the framegen flicker, the PanVK stutter, the aim, the mods
 
-          - Frame generation 2x (Settings → Graphics, on by default):
-            while the game runs below the screen's rate, every refresh it
-            leaves empty shows the blend of the frames either side — the
-            picture halfway between — and the frame itself follows in the
-            gap. Motion looks twice as smooth; the game's own frames and
-            their input are untouched, and a game that keeps up with the
-            display never blends.
-          - FSR 1's sharpening (RCAS) is a setting of its own now — Soft,
-            Normal (AMD's default), Strong — and FSR runs under frame
-            generation: the in-between is upscaled and sharpened like any
-            frame.
-          - The menu stays out of the thumbs' way: the swipe gestures are
-            off by default (a forward walk with the left stick read as
-            one, and the menu opened mid-fight), and where they may still
-            start is outside the thumbs' zones. A small options button at
-            the top middle opens the menu.
-          - The aim was too slow: Halo 2's turn speed is progressive, and
-            a plain dead-zone lift left a medium drag at a deflection the
-            game barely turns at. The look's response bends now (its
-            square root) — a medium drag turns as a good push of the
-            stick, a flick is still the full rim — with the default
-            sensitivity up to 1.2x and the full-tilt drag down to 115 dp.
-          - Moving and aiming no longer cost frames: the move stick's
-            knob moves in fine steps (the input itself stays exact), so
-            its display list is recorded again only as it crosses one,
-            and the overlays redraw at most 45 times a second on any GPU
-            driver — following the thumb at every touch sample cost the
-            game frames on the system Mali driver.
+          - Frame generation no longer flickers: it blended after any
+            refresh the game left empty, so a game grazing the screen's
+            rate (55-59 fps on 60 Hz) showed a ghosted double-exposure on
+            and off, each ghost delaying its frame a refresh. It now
+            blends only while the game runs solidly behind the display
+            (half rate and lower); at or near the panel's rate it never
+            blends, exactly as if it were off.
+          - No more stutter on PanVK: the presenter waited on the CPU for
+            its passes (a wait only Qualcomm's own driver needs — Turnip
+            and PanVK hand the compositor a sync file and return at once).
+            On the Helio G100's Mali-G57 the window's thread sat behind
+            the game's GPU work and missed refresh after refresh: hiccups,
+            whole frames late. PanVK is exempt from the wait now, as
+            Turnip always was. Which driver you run: Settings → Graphics →
+            GPU driver — the entry marked "in use" is the one running.
+          - The aim tracks the thumb: Halo 2 turns roughly cubic in the
+            stick's deflection, so a medium drag sat where the game barely
+            turns. The look's response bends by the cube root now — the
+            bend and the game's curve cancel, the camera turning in
+            proportion to how fast the thumb moves. Default sensitivity
+            1.6x, full tilt at a drag of ~800 dp/s held, and a 1.25x
+            vertical gain (the game turns slower up and down). The slider
+            stays in Settings.
+          - Mods hold, or don't apply at all: a mod of another release of
+            the game used to apply whichever of its lines happened to
+            match — a half-patched game, glitches of its own. It is left
+            off whole now, with one line in the log saying so; and mods
+            are found for a disc whose certificate version differs from
+            the folder's (Halo 2's pressings differ in it), each patch
+            still checked byte for byte.
+          - Modded maps load: Halo 2 caches its maps on the console's
+            cache drives (X:, Y:, Z:) and keeps loading them from the
+            cache, not the disc — a modded map showed only once that cache
+            was cleared. The cache drives are cleared whenever the files
+            the mods put over the disc change between runs. Savestates
+            carry their own cache and are safe.
 
           hailon2V1-$V-debug.apk installs beside the stock hakuX (its id
-          ends in .debug) and updates over 0002C. hailon2V1-$V-release.apk
+          ends in .debug) and updates over 0002D. hailon2V1-$V-release.apk
           is the plain release build.
           GPL-3.0+ — source in this repository.
           EOF

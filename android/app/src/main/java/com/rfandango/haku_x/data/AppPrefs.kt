@@ -13,6 +13,20 @@ import java.util.Locale
 class AppPrefs(context: Context) {
   private val sp = context.getSharedPreferences(NAME, Context.MODE_PRIVATE)
 
+  init {
+    /* One-time: the look's response changed again in 0002E (its lift bends
+     * by the cube root now, and a lighter drag is a full tilt), so a
+     * sensitivity left by an older default would keep the camera slow. Only
+     * a value a default left there moves; one the player chose stays. */
+    if (!sp.contains(KEY_LOOK_MIGRATED)) {
+      val old = sp.getFloat(NativeCoreActivity.PREF_LOOK_SENSITIVITY, 1.6f)
+      if (old == 1.0f || old == 1.2f) {
+        sp.edit { putFloat(NativeCoreActivity.PREF_LOOK_SENSITIVITY, 1.6f) }
+      }
+      sp.edit { putBoolean(KEY_LOOK_MIGRATED, true) }
+    }
+  }
+
   /**
    * The folders the library lists, in the order they were added (one line
    * each). Before there could be several, the one folder was
@@ -123,11 +137,13 @@ class AppPrefs(context: Context) {
   /**
    * The look (right) stick's own response, apart from the move stick's: how
    * far the thumb drags for full turn, as mobile shooters' camera
-   * sensitivity (read at game start). 1.2 by default since 0002D: the game's
-   * own progressive turn curve ate the middle of the range before.
+   * sensitivity (read at game start). 1.6 by default since 0002E: full tilt
+   * is a drag of ~800 dp/s held, and the lift's cube root (against the
+   * game's progressive turn curve) carries the middle of the range with it
+   * — 1.0 in 0002C, 1.2 in 0002D, both still "low sensitivity".
    */
   var lookSensitivity: Float
-    get() = sp.getFloat(NativeCoreActivity.PREF_LOOK_SENSITIVITY, 1.2f)
+    get() = sp.getFloat(NativeCoreActivity.PREF_LOOK_SENSITIVITY, 1.6f)
     set(value) = sp.edit { putFloat(NativeCoreActivity.PREF_LOOK_SENSITIVITY, value) }
 
   /** A drag on the right of the screen, over no control, aims the camera (swipe look). */
@@ -317,6 +333,8 @@ class AppPrefs(context: Context) {
     private const val KEY_CONSOLE_TIMING = "console_timing"
     private const val KEY_THEME = "app_theme"
     private const val KEY_TURNIP_NOTE = "turnip_note_shown"
+    /** The look sensitivity's 0002E re-tuning ran (see init). */
+    private const val KEY_LOOK_MIGRATED = "look_sensitivity_migrated"
     const val THEME_SYSTEM = "system"
     const val THEME_LIGHT = "light"
     const val THEME_DARK = "dark"

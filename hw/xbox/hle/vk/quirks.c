@@ -4,6 +4,8 @@
 #include "hw/xbox/hle/base.h"
 #include "hw/xbox/hle/vk/quirks.h"
 
+#include <strings.h>
+
 #include "hw/xbox/hle/hle.h"
 
 #ifdef __ANDROID__
@@ -32,6 +34,28 @@ static bool qualcomm_proprietary(const HleDriver *d)
 static bool mesa_turnip(const HleDriver *d)
 {
     return d->drv.driverID == VK_DRIVER_ID_MESA_TURNIP;
+}
+
+/* Mesa's Mali driver (PanVK, on Arm's kbase kernel driver). Its driverID
+ * (VK_DRIVER_ID_MESA_PANVK) is only in newer Vulkan headers than a build
+ * may see, so the strings say it too: Mesa's driverName is "panvk", and a
+ * custom build names itself in driverInfo. */
+static bool mesa_panvk(const HleDriver *d)
+{
+#ifdef VK_DRIVER_ID_MESA_PANVK
+    if (d->drv.driverID == VK_DRIVER_ID_MESA_PANVK) {
+        return true;
+    }
+#endif
+    for (const char *const *s = (const char *const[]){d->drv.driverName, d->drv.driverInfo, NULL};
+         *s; s++) {
+        for (size_t i = 0; (*s)[i]; i++) {
+            if (!strncasecmp(*s + i, "panvk", 5)) {
+                return true;
+            }
+        }
+    }
+    return false;
 }
 
 static bool arm_proprietary(const HleDriver *d)
@@ -122,11 +146,16 @@ static bool mali_g52_arm(const HleDriver *d)
  * the queue's lock for 3-6 ms while it waits; the Mali-G52's (Arm's r34p0,
  * Vulkan 1.1, 2026-10-30) returns at once, so the wait only cost there: the
  * presenter spent 620-730 ms/s waiting for its passes, without it 0.3 ms/s,
- * the picture the same (Sega GT 2002, Beyond Good & Evil). Arm's other GPUs
- * and releases are untested, so they keep it. */
+ * the picture the same (Sega GT 2002, Beyond Good & Evil). PanVK is Mesa
+ * like Turnip: its present hands the compositor a sync file and returns
+ * (Mesa's vk_android.c), and the CPU wait just put the window's thread
+ * behind the game's frames on the queue — on a Mali-G57 MC2 (Helio G100)
+ * the presenter missed refresh after refresh while the game kept the GPU
+ * busy, and the picture stuttered. Arm's other GPUs and releases are
+ * untested, so they keep it. */
 static bool not_turnip_not_g52_arm(const HleDriver *d)
 {
-    return !mesa_turnip(d) && !mali_g52_arm(d);
+    return !mesa_turnip(d) && !mesa_panvk(d) && !mali_g52_arm(d);
 }
 
 /* Timestamp queries that never resolve: ARMSX2's Mali-G615, and the G52's
