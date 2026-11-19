@@ -29,6 +29,7 @@ import com.rfandango.haku_x.R
 import com.rfandango.haku_x.data.ModCatalog
 import com.rfandango.haku_x.data.ModChoices
 import com.rfandango.haku_x.data.ModInfo
+import com.rfandango.haku_x.data.ModRun
 import com.rfandango.haku_x.data.UserMods
 import com.rfandango.haku_x.ui.common.ActionItem
 import com.rfandango.haku_x.ui.common.ConfirmDialog
@@ -57,6 +58,17 @@ fun ModsScreen(gameKey: String, title: String, onBack: () -> Unit) {
   }
   val isHalo2 = gameKey.substringBefore('.') in ModChoices.HALO2_TITLE_IDS
   var nativeCamera by remember(gameKey) { mutableStateOf(choices.mod(ModChoices.NATIVE_CAMERA)) }
+  /** What the last run did with each mod (ModRun.lastStatus, from its log):
+   * applied, or left off entirely — this disc is another release of the
+   * game, the reason "mods don't work" was invisible until now. */
+  val lastRun = remember(gameKey) { ModRun.lastStatus(context, gameKey) }
+  val statusApplied = stringResource(R.string.mods_status_applied)
+  val statusLeftOff = stringResource(R.string.mods_status_left_off)
+  fun statusLine(id: String): String? = when (lastRun?.get(id)) {
+    true -> statusApplied
+    false -> statusLeftOff
+    null -> null
+  }
   var deleting by remember { mutableStateOf<ModInfo?>(null) }
   val snackbar = remember { SnackbarHostState() }
   val scope = rememberCoroutineScope()
@@ -90,7 +102,7 @@ fun ModsScreen(gameKey: String, title: String, onBack: () -> Unit) {
         Hint(stringResource(R.string.mods_native_camera_desc))
         SwitchItem(
           title = stringResource(R.string.mods_native_camera),
-          summary = null,
+          summary = statusLine(ModChoices.NATIVE_CAMERA),
           checked = nativeCamera,
           onChange = { v ->
             choices.setMod(ModChoices.NATIVE_CAMERA, v)
@@ -107,7 +119,8 @@ fun ModsScreen(gameKey: String, title: String, onBack: () -> Unit) {
           val by = if (mod.author.isNotEmpty()) stringResource(R.string.mods_by, mod.author) else ""
           SwitchItem(
             title = mod.name,
-            summary = listOf(mod.description, by).filter { it.isNotEmpty() }.joinToString("\n").ifEmpty { null },
+            summary = listOf(mod.description, by, statusLine(mod.id) ?: "")
+              .filter { it.isNotEmpty() }.joinToString("\n").ifEmpty { null },
             checked = mods[mod.id] == true,
             onChange = { v ->
               choices.setMod(mod.id, v)

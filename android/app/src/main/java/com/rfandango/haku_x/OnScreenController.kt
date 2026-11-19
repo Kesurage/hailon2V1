@@ -37,6 +37,7 @@ import kotlin.math.hypot
 import kotlin.math.max
 import kotlin.math.min
 import kotlin.math.roundToInt
+import kotlin.math.sqrt
 
 /**
  * The on-screen controller, drawn like the original Xbox controller, each
@@ -738,18 +739,19 @@ class OnScreenController @JvmOverloads constructor(
    * out: a touch that moves goes as 0.28 at the least, so a micro-swipe
    * aims instead of dying in the dead zone, and the rest of the range rides
    * up with it — the same full tilt at the rim. The look's lift bends
-   * besides (its cube root): Halo's turn speed is progressive — roughly
-   * cubic across the range, so a plain lift left a medium drag at a
-   * deflection the game barely turns at (the "low sensitivity" feel; the
-   * square root of 0002D still left the middle sagging) — and the bend
-   * cancels the game's curve, the camera turning in proportion to how fast
-   * the thumb moves; the move stick's stays linear (a walk answers as
-   * pushed).
+   * besides (its square root): Halo's turn speed is progressive, and a
+   * plain lift left a medium drag at a deflection the game barely turns
+   * at, so the look's half of the range carries more of the drag, the move
+   * stick's stays linear (a walk answers as pushed). 0002E bent it by the
+   * cube root with a 1.6x sensitivity and a vertical gain on top: too
+   * much, the camera ran away from a light drag — this is 0002D's answer
+   * again, the sensitivity a notch up (AppPrefs) and the stop a shade
+   * sooner (LOOK_IDLE_MS) as the slight nudge toward the mobile shooters'
+   * feel that was asked.
    */
   private fun emitStick(i: Int, x: Float, y: Float) {
     val lift: (Float) -> Float = if (i == 1) ::liftLook else ::lift
-    val yy = if (i == 1) (y * LOOK_Y_GAIN).coerceIn(-1f, 1f) else y
-    listener?.onStickMoved(if (i == 0) Stick.LEFT else Stick.RIGHT, lift(x), lift(yy))
+    listener?.onStickMoved(if (i == 0) Stick.LEFT else Stick.RIGHT, lift(x), lift(y))
   }
 
   /** Over the game's dead zone or nothing: rest stays rest (0 stays 0). */
@@ -760,13 +762,13 @@ class OnScreenController @JvmOverloads constructor(
     return if (v < 0f) -s else s
   }
 
-  /** The look's lift: its middle cube-rooted, the game's own progressive
-   * curve cancelled — a medium drag turns as a hard push, a flick is still
-   * the full rim, rest still rest. */
+  /** The look's lift: its middle square-rooted — a medium drag turns as a
+   * good push of the stick, a flick is still the full rim, rest still
+   * rest. */
   private fun liftLook(v: Float): Float {
     val a = abs(v)
     if (a < 0.02f) return 0f
-    val s = GAME_DEADZONE + (1f - GAME_DEADZONE) * Math.cbrt(min(a, 1f).toDouble()).toFloat()
+    val s = GAME_DEADZONE + (1f - GAME_DEADZONE) * sqrt(min(a, 1f))
     return if (v < 0f) -s else s
   }
 
@@ -1205,13 +1207,10 @@ class OnScreenController @JvmOverloads constructor(
      * on its way out (lift). */
     const val GAME_DEADZONE = 0.28f
     /** The dp of drag that, held within the ease's window, is a full-tilt
-     * turn (0002D had 115 with sensitivity 1.2: full tilt asked for a
-     * ~1370 dp/s flick — a medium drag turned at a crawl). */
-    const val LOOK_DRAG_DP = 90f
-    /** The look's vertical gain: the game turns slower up and down than
-     * around, and a thumb has less room to drag vertically, so the same
-     * drag turns further (both look inputs: the touchpad and the stick). */
-    const val LOOK_Y_GAIN = 1.25f
+     * turn. 0002D's 115 felt right on the device (0002E's 90 with the
+     * cube-root lift and sensitivity 1.6 ran away from a light drag); the
+     * sensitivity carries the slight bump since (AppPrefs). */
+    const val LOOK_DRAG_DP = 115f
     /** The turning rate's ease when the finger rests, in seconds (any refresh rate). */
     const val LOOK_TAU_S = 0.07f
     /** A finger still this long stops the camera at once (ms) — long enough

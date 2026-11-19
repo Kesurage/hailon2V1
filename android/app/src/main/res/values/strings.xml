@@ -219,8 +219,8 @@
   <string name="settings_sharpness_soft">Soft</string>
   <string name="settings_sharpness_normal">Normal (AMD\'s default)</string>
   <string name="settings_sharpness_strong">Strong</string>
-  <string name="settings_framegen">Frame generation 2x</string>
-  <string name="settings_framegen_desc">While the game runs below the screen\'s rate, the empty refreshes show the blend of the frames either side of them — motion looks twice as smooth. The game\'s own frames and their input are untouched; a game that keeps up with the screen never blends.</string>
+  <string name="settings_framegen">Smooth motion</string>
+  <string name="settings_framegen_desc">While the game runs below the screen\'s rate, the empty refreshes show a ramp of blends of the frames either side of them — on a 120 Hz panel a 30 fps game moves in quarters instead of holding each frame four refreshes. The game\'s own frames and their input are untouched; a game that keeps up with the screen never blends.</string>
   <string name="settings_preset_speed">Performance preset (1x + FSR 1)</string>
   <string name="settings_preset_speed_desc">Sets the resolution scale to 1x, the upscaler to FSR 1 and FXAA off: the fastest good-looking combination on a slow GPU.</string>
   <string name="settings_stick_sensitivity">Stick sensitivity %1$.2f×</string>
@@ -358,6 +358,8 @@
   <string name="mods_section_mods">Mods</string>
   <string name="mods_mods_desc">Mods change the game\'s files. A change takes effect the next time the game starts.</string>
   <string name="mods_by">by %1$s</string>
+  <string name="mods_status_applied">Last run: applied</string>
+  <string name="mods_status_left_off">Last run: left off — this disc is another release of the game, its patches hold for another</string>
   <string name="mods_section_this_phone">This phone</string>
   <string name="mods_native_camera">Native camera — this screen</string>
   <string name="mods_native_camera_desc">Halo 2 renders for the phone\'s whole panel (its anamorphic factor widened to this screen\'s shape), so under the Native aspect the picture fills the screen with no crop and no stretching. Experimental: the HUD is drawn for the wider shape too, and a title update\'s own XBE is not patched — if anything misbehaves, turn it off.</string>

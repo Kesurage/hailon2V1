@@ -308,7 +308,7 @@ class NativeCoreActivity : SDLActivity(), InputManager.InputDeviceListener {
       setTheme(R.style.Theme_HakuX_Game_Dark)
     }
     discArg = openDisc()
-    Logs.startGame(this, gameName(), when {
+    gameLog = Logs.startGame(this, gameName(), when {
       intent.getBooleanExtra(EXTRA_RELAUNCH, false) -> "relaunched into another XBE"
       intent.hasExtra(EXTRA_LOADSTATE) -> "loading a savestate"
       else -> "started"
@@ -608,6 +608,9 @@ class NativeCoreActivity : SDLActivity(), InputManager.InputDeviceListener {
   @Volatile private var runCheats: List<CheatInfo> = emptyList()
   @Volatile private var runKey = ""
 
+  /** This run's log (Logs.startGame), for the marker modsArg writes. */
+  @Volatile private var gameLog: java.io.File? = null
+
   /** "mods=<manifest>" when the disc's title has mods, cheats or the native
    * camera patch (SDL's thread: may extract a mod's files). */
   private fun modsArg(): String? {
@@ -621,6 +624,14 @@ class NativeCoreActivity : SDLActivity(), InputManager.InputDeviceListener {
       ?.let { (file, cheats) ->
         runKey = key
         runCheats = cheats
+        /* The Mods screen reads this run's log back (ModRun.lastStatus):
+         * which mod applied, which was left off and why. */
+        runCatching {
+          java.io.File(filesDir, "native/last-run.txt").apply {
+            parentFile?.mkdirs()
+            writeText("$key\n${gameLog?.name ?: ""}\n")
+          }
+        }
         "mods=${file.absolutePath}"
       }
   }

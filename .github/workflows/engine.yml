@@ -95,47 +95,42 @@ jobs:
           TAG="${GITHUB_REF#refs/tags/}"
           V="${{ env.VERSION }}"
           cat > release-notes.md <<EOF
-          hailon2V1 0002E — the framegen flicker, the PanVK stutter, the aim, the mods
+          hailon2V1 0002F — smooth motion, the touch of 0002D back, PanVK as it was
 
-          - Frame generation no longer flickers: it blended after any
-            refresh the game left empty, so a game grazing the screen's
-            rate (55-59 fps on 60 Hz) showed a ghosted double-exposure on
-            and off, each ghost delaying its frame a refresh. It now
-            blends only while the game runs solidly behind the display
-            (half rate and lower); at or near the panel's rate it never
-            blends, exactly as if it were off.
-          - No more stutter on PanVK: the presenter waited on the CPU for
-            its passes (a wait only Qualcomm's own driver needs — Turnip
-            and PanVK hand the compositor a sync file and return at once).
-            On the Helio G100's Mali-G57 the window's thread sat behind
-            the game's GPU work and missed refresh after refresh: hiccups,
-            whole frames late. PanVK is exempt from the wait now, as
-            Turnip always was. Which driver you run: Settings → Graphics →
-            GPU driver — the entry marked "in use" is the one running.
-          - The aim tracks the thumb: Halo 2 turns roughly cubic in the
-            stick's deflection, so a medium drag sat where the game barely
-            turns. The look's response bends by the cube root now — the
-            bend and the game's curve cancel, the camera turning in
-            proportion to how fast the thumb moves. Default sensitivity
-            1.6x, full tilt at a drag of ~800 dp/s held, and a 1.25x
-            vertical gain (the game turns slower up and down). The slider
-            stays in Settings.
-          - Mods hold, or don't apply at all: a mod of another release of
-            the game used to apply whichever of its lines happened to
-            match — a half-patched game, glitches of its own. It is left
-            off whole now, with one line in the log saying so; and mods
-            are found for a disc whose certificate version differs from
-            the folder's (Halo 2's pressings differ in it), each patch
-            still checked byte for byte.
-          - Modded maps load: Halo 2 caches its maps on the console's
-            cache drives (X:, Y:, Z:) and keeps loading them from the
-            cache, not the disc — a modded map showed only once that cache
-            was cleared. The cache drives are cleared whenever the files
-            the mods put over the disc change between runs. Savestates
-            carry their own cache and are safe.
+          - Smooth motion (was "frame generation 2x", Settings → Graphics,
+            on by default): a 30 fps game on a 120 Hz panel no longer holds
+            each frame four refreshes — the gap is filled with a ramp of
+            blends from the frame before to the new one, a step of the way
+            between per refresh. Motion is monotone instead of stepped, and
+            no blending at all while the game runs at or near the panel's
+            rate (0002E's flicker fix stands).
+          - The touch is 0002D's again: 0002E's cube-root response with
+            1.6x sensitivity and a vertical gain ran away from a light
+            drag. The square-root response and the 115 dp full-tilt drag
+            are back, the sensitivity 1.35x (a set value stays yours).
+          - The PanVK present waits on the CPU again, as before 0002E: the
+            exemption made the stutter worse on the Hot 50 4G's PanVK.
+            Which driver runs: Settings → Graphics → GPU driver, the entry
+            marked "in use".
+          - Split mouths and twitching arms: the vertex-alignment copy
+            Arm's own Mali driver needs no longer runs under PanVK (it was
+            measured on Arm's blob); if a face still splits, it is the
+            60 fps mod's in-betweens — which is why that mod is now OFF by
+            default: at 60 the game dips and stutters worse on a Mali-G57
+            MC2 than a locked 30 with smooth motion does, and its
+            interpolated characters show in cutscenes. One tap in Mods &
+            cheats brings it back where the device holds 60.
+          - Pixel edges: FXAA is on by default (a 480p frame over a 720p
+            panel shows bare stairs without it).
+          - Mods say what they did: the Mods screen reads the last run's
+            log and says under each mod "applied", or "left off — this
+            disc is another release of the game". A mod of another disc
+            release applies nothing (its patches are checked byte for
+            byte, and a mod that doesn't hold is left off whole); now it
+            names the reason where you toggle it.
 
           hailon2V1-$V-debug.apk installs beside the stock hakuX (its id
-          ends in .debug) and updates over 0002D. hailon2V1-$V-release.apk
+          ends in .debug) and updates over 0002E. hailon2V1-$V-release.apk
           is the plain release build.
           GPL-3.0+ — source in this repository.
           EOF

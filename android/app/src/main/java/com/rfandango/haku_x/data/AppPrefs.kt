@@ -14,16 +14,16 @@ class AppPrefs(context: Context) {
   private val sp = context.getSharedPreferences(NAME, Context.MODE_PRIVATE)
 
   init {
-    /* One-time: the look's response changed again in 0002E (its lift bends
-     * by the cube root now, and a lighter drag is a full tilt), so a
-     * sensitivity left by an older default would keep the camera slow. Only
-     * a value a default left there moves; one the player chose stays. */
-    if (!sp.contains(KEY_LOOK_MIGRATED)) {
-      val old = sp.getFloat(NativeCoreActivity.PREF_LOOK_SENSITIVITY, 1.6f)
-      if (old == 1.0f || old == 1.2f) {
-        sp.edit { putFloat(NativeCoreActivity.PREF_LOOK_SENSITIVITY, 1.6f) }
+    /* One-time, per round the look's response changes: 0002E's cube root
+     * with 1.6x ran away from a light drag, so 0002F is 0002D's square
+     * root again with 1.35x. Only a value a default left there moves; one
+     * the player chose stays theirs. */
+    if (!sp.contains(KEY_LOOK_MIGRATED_V2)) {
+      val old = sp.getFloat(NativeCoreActivity.PREF_LOOK_SENSITIVITY, 1.35f)
+      if (old == 1.0f || old == 1.2f || old == 1.6f) {
+        sp.edit { putFloat(NativeCoreActivity.PREF_LOOK_SENSITIVITY, 1.35f) }
       }
-      sp.edit { putBoolean(KEY_LOOK_MIGRATED, true) }
+      sp.edit { putBoolean(KEY_LOOK_MIGRATED_V2, true) }
     }
   }
 
@@ -118,9 +118,12 @@ class AppPrefs(context: Context) {
       ?: NativeCoreActivity.ASPECT_STRETCH
     set(value) = sp.edit { putString(NativeCoreActivity.PREF_ASPECT, value) }
 
-  /** FXAA over each frame before it's scaled to the screen (read at game start). */
+  /** FXAA over each frame before it's scaled to the screen (read at game
+   * start). On by default since 0002F: a 480p frame stretched over a 720p
+   * panel shows bare pixel edges without it, the pass a shade of the frame
+   * it smooths. */
   var fxaa: Boolean
-    get() = sp.getBoolean(NativeCoreActivity.PREF_FXAA, false)
+    get() = sp.getBoolean(NativeCoreActivity.PREF_FXAA, true)
     set(value) = sp.edit { putBoolean(NativeCoreActivity.PREF_FXAA, value) }
 
   /** The on-screen sticks' response: 1.0 linear from the dead zone's edge to
@@ -137,13 +140,13 @@ class AppPrefs(context: Context) {
   /**
    * The look (right) stick's own response, apart from the move stick's: how
    * far the thumb drags for full turn, as mobile shooters' camera
-   * sensitivity (read at game start). 1.6 by default since 0002E: full tilt
-   * is a drag of ~800 dp/s held, and the lift's cube root (against the
-   * game's progressive turn curve) carries the middle of the range with it
-   * — 1.0 in 0002C, 1.2 in 0002D, both still "low sensitivity".
+   * sensitivity (read at game start). 1.35 by default since 0002F: 0002D's
+   * square-root lift (back again after 0002E's cube root overshot) with a
+   * notch more sensitivity — the slight step toward the mobile shooters'
+   * feel that was asked for.
    */
   var lookSensitivity: Float
-    get() = sp.getFloat(NativeCoreActivity.PREF_LOOK_SENSITIVITY, 1.6f)
+    get() = sp.getFloat(NativeCoreActivity.PREF_LOOK_SENSITIVITY, 1.35f)
     set(value) = sp.edit { putFloat(NativeCoreActivity.PREF_LOOK_SENSITIVITY, value) }
 
   /** A drag on the right of the screen, over no control, aims the camera (swipe look). */
@@ -168,11 +171,12 @@ class AppPrefs(context: Context) {
     set(value) = sp.edit { putBoolean(NativeCoreActivity.PREF_SWIPE_MENU, value) }
 
   /**
-   * Frame generation 2x (read at game start): while the game runs behind the
-   * screen's rate, each empty refresh shows the blend of the frames either
-   * side of it — the panel's rate met, the game's own frames and their
-   * input untouched. On by default; a game that keeps up with the display
-   * never blends, and the toggle is one tap away.
+   * Smooth motion, frame generation (read at game start): while the game
+   * runs solidly below the screen's rate, each empty refresh shows a blend
+   * of the frames either side of it, a step of the way between — the
+   * panel's rate met, the game's own frames and their input untouched. On
+   * by default; a game that keeps up with the display never blends, and
+   * the toggle is one tap away.
    */
   var frameGeneration: Boolean
     get() = sp.getBoolean(NativeCoreActivity.PREF_FRAMEGEN, true)
@@ -333,8 +337,8 @@ class AppPrefs(context: Context) {
     private const val KEY_CONSOLE_TIMING = "console_timing"
     private const val KEY_THEME = "app_theme"
     private const val KEY_TURNIP_NOTE = "turnip_note_shown"
-    /** The look sensitivity's 0002E re-tuning ran (see init). */
-    private const val KEY_LOOK_MIGRATED = "look_sensitivity_migrated"
+    /** The look sensitivity's 0002F re-tuning ran (see init). */
+    private const val KEY_LOOK_MIGRATED_V2 = "look_sensitivity_migrated_v2"
     const val THEME_SYSTEM = "system"
     const val THEME_LIGHT = "light"
     const val THEME_DARK = "dark"

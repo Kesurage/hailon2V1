@@ -73,13 +73,15 @@ object Logs {
     }
   }
 
-  /** A game process starts: its own log in the running session. */
-  fun startGame(context: Context, name: String, why: String) {
+  /** A game process starts: its own log in the running session; the file
+   * it went to (the game process marks it for the Mods screen's status). */
+  fun startGame(context: Context, name: String, why: String): File {
     val current = current(context).apply { mkdirs() }
     val n = current.list().orEmpty().mapNotNull { GAME.matchEntire(it)?.groupValues?.get(1)?.toIntOrNull() }
       .maxOrNull()?.plus(1) ?: 1
     val file = File(current, "game-$n-${fileName(name)}.log")
     capture(file, "=== $name ($why), pid ${Process.myPid()}, started ${stamp(System.currentTimeMillis())}\n")
+    return file
   }
 
   /**

@@ -232,7 +232,14 @@ class ModChoices(context: Context, private val game: String) {
   fun cheat(name: String) = read().optBoolean("$game/cheat/$name", false)
   fun setCheat(name: String, on: Boolean) = write("$game/cheat/$name", on)
 
-  private fun defaultOn(id: String) = isHalo2() && (id == "60fps" || id == NATIVE_CAMERA)
+  /* The 60 fps mod is OFF by default since 0002F: it lifts Halo 2 to 60 by
+   * drawing characters, vehicles and objects between the game's 30 updates
+   * (its own node-matrix interpolation), which shows as split mouths and
+   * twitching arms in cutscenes, and a phone GPU that can't hold 60
+   * (the Infinix Hot 50 4G's Mali-G57 MC2 among them) stutters worse than
+   * a locked 30 with smooth motion does. One tap in Mods & cheats turns
+   * it back on where the device holds it and the in-betweens are wanted. */
+  private fun defaultOn(id: String) = isHalo2() && id == NATIVE_CAMERA
 
   /** This game is a Halo 2 release (its key's title ID is one of theirs). */
   private fun isHalo2() = game.substringBefore('.') in HALO2_TITLE_IDS
@@ -351,6 +358,36 @@ object ModRun {
     file.parentFile?.mkdirs()
     file.writeText(stamp)
     Log.i(TAG, "map cache cleared (${files.size} files over the disc)")
+  }
+
+  /**
+   * The mods' status at the last run of this game, from its log: true, a
+   * patch of the mod applied; false, it was left off entirely (its places'
+   * bytes are not this disc's — another release of the game). Null: no run
+   * of this game with mods since the log it wrote is gone. The game's
+   * process marked its log (NativeCoreActivity's modsArg, last-run.txt).
+   */
+  fun lastStatus(context: Context, gameKey: String): Map<String, Boolean>? {
+    val marker = File(context.filesDir, "native/last-run.txt")
+    if (!marker.isFile) return null
+    val lines = marker.readLines()
+    if (lines.getOrNull(0) != gameKey || lines.getOrNull(1).isNullOrBlank()) return null
+    val log = File(File(context.filesDir, "logs/current"), lines[1])
+    if (!log.isFile) return null
+    val status = mutableMapOf<String, Boolean>()
+    log.useLines { seq ->
+      for (line in seq) {
+        val m = Regex("hakuX-native-mods: ([^:]+): (.*)").find(line) ?: continue
+        val mod = m.groupValues[1]
+        val msg = m.groupValues[2]
+        if ("left off entirely" in msg) {
+          status[mod] = false
+        } else if (msg.startsWith("[")) {
+          status.putIfAbsent(mod, true)   /* a patch of it applied */
+        }
+      }
+    }
+    return status
   }
 
   /* The phone's panel, at its longest over its shortest: the window lies

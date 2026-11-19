@@ -1,5 +1,17 @@
 # Changelog
 
+## v0002F
+
+Smooth motion, 0002D's touch back, the presenter as it was on PanVK, and mods that say what they did.
+
+- **Smooth motion** (was "frame generation 2x", Settings → Graphics, on by default): a 30 fps game on a 120 Hz panel no longer holds each frame four refreshes — the gap is filled with a *ramp* of blends from the frame before to the new one, a step of the way between per refresh (quarters on a 120 Hz panel, thirds on 90, the halfway blend and the frame on 60). Motion is monotone instead of stepped, and the flicker fix of 0002E stands: no blending at all while the game runs at or near the panel's rate.
+- **The touch is 0002D's again.** 0002E's cube-root response with 1.6x sensitivity and a vertical gain ran away from a light drag — ruined, as reported. The square-root response and the 115 dp full-tilt drag are back, the sensitivity 1.35x (a one-time migration moves the defaults; a value you set yourself stays), and nothing else about the look changed.
+- **The PanVK present waits on the CPU again**, as it did before 0002E: the exemption that helped Turnip made the stutter *worse* on the Hot 50 4G's PanVK (an Infinix Hot 50 4G, Helio G100, Mali-G57 MC2 — noted, and the phone is what these builds are tuned for). Whatever its present returns, the wait is the safe side there.
+- **Split mouths and twitching arms**: the vertex-alignment workaround that Arm's own Mali driver needs (a copy of misaligned vertex data on the render thread, Halo 2's characters among it) no longer runs under PanVK — it was measured on Arm's blob, and Mesa's driver fetches vertices its own way. If a face or a limb still splits, it is the 60 fps mod's own in-betweens drawing characters between the game's 30 updates — which is why that mod is now **off by default** (below), and one tap brings it back on a device that holds 60.
+- **The 60 fps mod is off by default**: on a Mali-G57 MC2 the game at 60 dips and stutters worse than a locked 30 with smooth motion does, and its interpolated characters show in cutscenes. Where a device holds 60 and the in-betweens are wanted: Mods & cheats → 60 fps.
+- **Pixel edges**: FXAA is on by default (Settings → Graphics still has it) — a 480p frame stretched over a 720p panel shows bare stairs without it.
+- **Mods say what they did.** The Mods screen now reads the last run's log and says under each mod: **applied**, or **left off — this disc is another release of the game** (every patch's bytes are checked before applying, and a mod that doesn't hold is left off whole, as of 0002E; now it says so where you toggle it). That was the invisible half of "mods don't work": a mod made for another disc release applies nothing, silently, and now it names the reason.
+
 ## v0002E
 
 Frame generation that knows when to blend, the presenter free-running on PanVK, an aim that tracks the thumb, and mods that hold.

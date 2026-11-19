@@ -90,6 +90,19 @@ static bool mali_g57(const HleDriver *d)
     return mali(d) && strstr(d->props.deviceName, "Mali-G57") != NULL;
 }
 
+/* A Mali-G57 under Arm's own driver (or a build of it, like malisx2). The
+ * vb_align quirk below is the blob's misaligned-fetch workaround, measured
+ * on it; PanVK (Mesa) fetches vertices its own way and handles misaligned
+ * attributes itself, and needs no copy. The copy is not free (a per-vertex
+ * memcpy on the render thread for every misaligned draw, Halo 2 characters
+ * among them on a Mali-G57 MC2), and an Infinix Hot 50 4G reported split
+ * mouths and twitching arms under PanVK: where the blob's bug is not
+ * there, the copy's own risk is. */
+static bool mali_g57_not_mesa(const HleDriver *d)
+{
+    return mali_g57(d) && !mesa_panvk(d);
+}
+
 /* malisx2 reports Arm's vendor and driver IDs; "malisx2" in driverInfo tells
  * it apart. Some Arm quirks are blob bugs and must not apply to it. */
 static bool malisx2(const HleDriver *d)
@@ -146,16 +159,15 @@ static bool mali_g52_arm(const HleDriver *d)
  * the queue's lock for 3-6 ms while it waits; the Mali-G52's (Arm's r34p0,
  * Vulkan 1.1, 2026-10-30) returns at once, so the wait only cost there: the
  * presenter spent 620-730 ms/s waiting for its passes, without it 0.3 ms/s,
- * the picture the same (Sega GT 2002, Beyond Good & Evil). PanVK is Mesa
- * like Turnip: its present hands the compositor a sync file and returns
- * (Mesa's vk_android.c), and the CPU wait just put the window's thread
- * behind the game's frames on the queue — on a Mali-G57 MC2 (Helio G100)
- * the presenter missed refresh after refresh while the game kept the GPU
- * busy, and the picture stuttered. Arm's other GPUs and releases are
- * untested, so they keep it. */
+ * the picture the same (Sega GT 2002, Beyond Good & Evil). PanVK (Mesa's
+ * Mali driver) was given the same exemption in 0002E on the same reasoning
+ * as Turnip's, and an Infinix Hot 50 4G (Helio G100, Mali-G57 MC2) came
+ * back with stutter worse than before: whatever its present returns, the
+ * exemption is not safe there, and it keeps the wait with Arm's own driver.
+ * Arm's other GPUs and releases are untested, so they keep it too. */
 static bool not_turnip_not_g52_arm(const HleDriver *d)
 {
-    return !mesa_turnip(d) && !mesa_panvk(d) && !mali_g52_arm(d);
+    return !mesa_turnip(d) && !mali_g52_arm(d);
 }
 
 /* Timestamp queries that never resolve: ARMSX2's Mali-G615, and the G52's
@@ -213,8 +225,9 @@ static const HleQuirk k_quirks[] = {
      * 2026-10-26): Mortal Kombat Shaolin Monks' meshes exploded; its vertices
      * are 18 bytes, two floats at offset 10, and the diag build counted 7.8
      * million misaligned attribute fetches in 230 s, nothing else wrong.
-     * The driver has no VK_EXT_legacy_vertex_attributes. */
-    { HLE_QUIRK_VB_ALIGN, "vb_align", mali_g57 },
+     * The driver has no way to fetch them right — PanVK (Mesa) has, and is
+     * not it (mali_g57_not_mesa). */
+    { HLE_QUIRK_VB_ALIGN, "vb_align", mali_g57_not_mesa },
     /* Mali-G57 MC4, Arm's r40p0 (Anbernic RG556, Unisoc T820, GammaOS;
      * 2026-10-31): Morrowind lost the device 0.2 s into its loading screen,
      * every time, the kernel log "JS: Job Hard-Stopped (took more than 10

@@ -6,8 +6,9 @@
  * Each refresh: a swapchain image (waiting for one paces the thread to the
  * panel: FIFO), the front frame, and one pass that letterboxes the frame
  * into the image, the rest black, through the display's gamma ramp. Frame
- * generation (hle_present_set_framegen) fills the refreshes the game leaves
- * empty with the blend of the frames either side of them, at 2x. The
+ * generation (hle_present_set_framegen), smooth motion: the refreshes the
+ * game leaves empty are filled with a ramp of blends of the frames either
+ * side of them, a step of the way between per refresh. The
  * anti-aliasing on the way:
  *  - FXAA over each new frame at its own size, into an image of ours, once a
  *    frame however many refreshes show it;
@@ -96,20 +97,27 @@ static struct {
     HleDispFrame f;
     bool have, using;           /* f held; inside hle_disp_use_begin */
     uint64_t serial;            /* frames taken */
-    /* frame generation 2x (hle_present_set_framegen): on, the frame before
-     * the front one is held one present longer for the blended in-between;
-     * the front frame itself still to show after its blend (gen_pending);
-     * the refreshes that showed nothing new (a game behind the display's
-     * rate); the frame whose picture — itself or its blend — was last shown */
+    /* smooth motion, frame generation (hle_present_set_framegen): on, the
+     * frame before the front one is held longer for the blended in-betweens;
+     * the ramp still to show before the frame itself (gen_left of gen_len
+     * steps, set when the frame arrives; gen_frame: the frame itself after
+     * them); the refreshes the window has shown (one a panel refresh, come
+     * what may) and the last one a frame arrived at — their difference is
+     * the gap a frame takes, whatever we showed in it; its smoothed value
+     * (gen_gap, in refreshes) is the game's rate against the panel's and
+     * the ramp's length; the frame whose picture — itself or one of its
+     * blends — was last shown */
     bool framegen;
     HleDispFrame fprev;
     bool have_prev;
-    bool gen_pending;
-    unsigned idle_refreshes;
+    unsigned gen_left, gen_len;
+    bool gen_frame;                /* the frame itself still to show after the ramp */
+    uint64_t refreshes;            /* one a refresh (hle_present_unchanged's entry) */
+    uint64_t last_arrival;         /* ... the refresh the last new frame arrived at */
+    float gen_gap;                 /* a frame's span in refreshes, smoothed */
     uint64_t drawn_serial;
     /* whether the game runs solidly behind the display (see gen_below) */
     bool gen_run;
-    float gen_idle;                 /* idle refreshes per frame, smoothed */
     /* FXAA's and a blend's image, the frame's size */
     VkImage fx_img;
     VkDeviceMemory fx_mem;
@@ -123,7 +131,7 @@ static struct {
     VkImageView fsr_view;
     uint32_t fsr_w, fsr_h;
     uint64_t fsr_serial;        /* the frame it holds */
-    bool fsr_blend;             /* ... as the blend with the one before */
+    float fsr_t;                /* ... as its blend at this step (-1: the frame itself) */
     /* the display's gamma ramp */
     uint8_t ramp[3][256];
     uint32_t ramp_gen;
@@ -344,7 +352,7 @@ static const char k_fs_sgsr[] =
  * touching the game's own frames or their input. */
 static const char k_fs_blend[] =
     "void main() {\n"
-    "  o = vec4(mix(texture(u_prev, v_uv).rgb, texture(u_tex, v_uv).rgb, 0.5), 1.0);\n"
+    "  o = vec4(mix(texture(u_prev, v_uv).rgb, texture(u_tex, v_uv).rgb, pc.extra.x), 1.0);\n"
     "}\n";
 
 /* AMD FidelityFX Super Resolution 1 (EASU, then RCAS below), from AMD's
@@ -900,13 +908,15 @@ static void lose_window(void)
 
 bool hle_present_unchanged(struct ANativeWindow *win, uint64_t key)
 {
+    g_ps.refreshes++;              /* this refresh, come what may below */
     if (!g_ps.shown || !win || win != g_ps.win || g_ps.stale || !g_ps.sc || key != g_ps.shown_key ||
         (uint32_t)ANativeWindow_getWidth(win) != g_ps.wsize.width ||
         (uint32_t)ANativeWindow_getHeight(win) != g_ps.wsize.height || hle_disp_gamma_seq() != g_ps.ramp_gen) {
         return false;
     }
-    /* frame generation: the frame itself is still to show after its blend */
-    if (g_ps.framegen && g_ps.gen_pending) {
+    /* smooth motion: the ramp of blends still runs, and the frame itself
+     * still to show at its end */
+    if (g_ps.framegen && (g_ps.gen_left > 0 || g_ps.gen_frame)) {
         return false;
     }
     uint32_t gen, swap_id;
@@ -917,9 +927,7 @@ bool hle_present_unchanged(struct ANativeWindow *win, uint64_t key)
     if (front && (gen != g_ps.f.gen || swap_id != g_ps.f.swap_id)) {
         return false;
     }
-    /* the panel keeps its image: a refresh the game left empty — where it
-     * runs behind the display's rate (frame generation's blends) */
-    g_ps.idle_refreshes++;
+    /* the panel keeps its image */
     return true;
 }
 
@@ -999,28 +1007,28 @@ bool hle_present_begin(struct ANativeWindow *win, uint32_t *w, uint32_t *h)
 
 /*
  * Whether the game runs solidly behind the display, frame generation's
- * ground: idle_refreshes at each new frame, smoothed (a quarter of the way
- * to each), hysteresis around the thresholds. Blending when the game only
- * grazes the display's rate — a frame late here and there — showed a ghost
- * on and off through otherwise whole frames, and the frame after each ghost
- * a refresh late: flicker and stutter, worse than nothing. At half rate and
- * below (30 fps on 60, 60 on 120) the count sits at one and more, and the
- * blends come every frame; a game that keeps up never leaves a refresh
- * empty and this stays off, as if frame generation were off.
+ * ground: the gap a frame's arrival spans, in refreshes, smoothed (a
+ * quarter of the way to each), hysteresis around the thresholds — at the
+ * panel's rate the gap is 1 and this stays off; at half rate and below
+ * (30 fps on 60, 60 on 120) it sits at 2 and more. Blending when the game
+ * only grazes the display's rate — a frame late here and there — showed a
+ * ghost on and off through otherwise whole frames, and the frame after
+ * each ghost a refresh late: flicker and stutter, worse than nothing.
  */
-static bool gen_below(bool framegen, unsigned idle)
+static void gen_below(bool framegen)
 {
     if (!framegen) {
-        return false;
+        g_ps.gen_run = false;
+        return;
     }
-    g_ps.gen_idle += 0.25f * ((float)idle - g_ps.gen_idle);
-    if (g_ps.gen_idle >= 0.6f) {
+    if (g_ps.gen_gap >= 1.7f) {
         g_ps.gen_run = true;
-    } else if (g_ps.gen_idle < 0.3f) {
+    } else if (g_ps.gen_gap < 1.4f) {
         g_ps.gen_run = false;
     }
-    return g_ps.gen_run;
 }
+
+static bool fxaa_target(uint32_t w, uint32_t h);
 
 bool hle_present_frame(uint32_t *w, uint32_t *h)
 {
@@ -1032,14 +1040,23 @@ bool hle_present_frame(uint32_t *w, uint32_t *h)
     }
     HleDispFrame f;
     if (hle_disp_acquire(&f) && (!g_ps.have || f.slot != g_ps.f.slot)) {
-        /* a new frame. Frame generation holds the one before it one present
-         * longer (the blend's other half), and only while the game runs
-         * solidly behind the display (gen_below) and this frame left a
-         * refresh empty behind it — at the display's rate the second slot
-         * would be the render thread's (display.h), and the blend never
-         * shows anyway. */
-        const bool behind = g_ps.idle_refreshes > 0;
-        const bool hold = behind && gen_below(g_ps.framegen, g_ps.idle_refreshes) && g_ps.have;
+        /* a new frame. Its gap — the refreshes since the last one arrived,
+         * whatever was shown in them — says how the game runs against the
+         * panel (gen_gap, smoothed; gen_below's ground). Frame generation
+         * holds the one before it one present longer (the blend's other
+         * half) while the game runs solidly behind and this frame really
+         * spanned refreshes to fill (gap >= 2); at the display's rate the
+         * second slot would be the render thread's (display.h), and the
+         * blend never shows anyway. */
+        const unsigned gap =
+            g_ps.last_arrival ? (unsigned)MIN(g_ps.refreshes - g_ps.last_arrival, 64u) : 0;
+        g_ps.last_arrival = g_ps.refreshes;
+        if (gap) {
+            g_ps.gen_gap += 0.25f * ((float)gap - g_ps.gen_gap);
+        }
+        gen_below(g_ps.framegen);
+        const bool behind = gap >= 2;
+        const bool hold = behind && g_ps.gen_run && g_ps.have;
         if (hold) {
             if (g_ps.have_prev) {
                 hle_disp_release(g_ps.fprev.slot);
@@ -1058,6 +1075,27 @@ bool hle_present_frame(uint32_t *w, uint32_t *h)
         g_ps.f = f;
         g_ps.have = true;
         g_ps.serial++;
+        /* The ramp that leads to this frame: as many steps as the gap it
+         * spans held refreshes — its rate, the smoothed one (gen_gap),
+         * where a hitch stretched this one gap — each a blend of the frame
+         * before and this one a step of the way between, the frame itself
+         * at the ramp's end. The gap holds gap refreshes; the ramp and the
+         * frame fill them all: a 30 fps game on a 120 Hz panel moves in
+         * quarters; on 60 Hz, the one halfway blend and the frame. */
+        g_ps.gen_len = g_ps.gen_left = 0;
+        g_ps.gen_frame = false;
+        if (hold && g_ps.have_prev && g_ps.f.w == g_ps.fprev.w && g_ps.f.h == g_ps.fprev.h &&
+            g_ps.pipe[P_GEN] && fxaa_target(g_ps.f.w, g_ps.f.h)) {
+            unsigned n = (unsigned)(g_ps.gen_gap + 0.5f) - 1;   /* its rate, smoothed */
+            if (n < 1) {
+                n = 1;
+            }
+            if (n > 5) {
+                n = 5;                 /* a long gap holds its frame, not stale blends */
+            }
+            g_ps.gen_len = g_ps.gen_left = n;
+            g_ps.gen_frame = true;      /* the frame at the ramp's end */
+        }
     }
     if (g_ps.have) {
         *w = g_ps.f.w;
@@ -1076,9 +1114,10 @@ void hle_present_set_framegen(bool on)
             }
             g_ps.have_prev = false;
         }
-        g_ps.gen_pending = false;
+        g_ps.gen_left = g_ps.gen_len = 0;
+        g_ps.gen_frame = false;
         g_ps.gen_run = false;
-        g_ps.gen_idle = 0.0f;
+        g_ps.gen_gap = 0.0f;
     }
 }
 
@@ -1178,6 +1217,7 @@ static bool fsr_target(uint32_t w, uint32_t h)
     g_ps.fsr_w = w;
     g_ps.fsr_h = h;
     g_ps.fsr_serial = 0;
+    g_ps.fsr_t = -1.0f;
     return true;
 }
 
@@ -1285,44 +1325,45 @@ void hle_present_end(float sx, float sy, bool fxaa, int upscale, bool average, f
     VkImageView src = g_ps.have ? g_ps.f.view : VK_NULL_HANDLE;
     bool fxaa_done = false;
     /*
-     * Frame generation 2x. While the game runs solidly behind the display
-     * (gen_run) and a frame arrives with a refresh empty behind it, that
-     * frame is shown first as the blend of it and the one before — the
-     * picture halfway between, one refresh early — and then as itself at
-     * the next refresh (gen_pending), which hle_present_unchanged sends
-     * around. A game that keeps up with the display, or only grazes it,
-     * never blends: every refresh has a new frame or holds the last one,
-     * and this is all exactly as before.
+     * Smooth motion (frame generation, hle_present_set_framegen). While the
+     * game runs solidly behind the display (gen_run), each frame that
+     * arrives over empty refreshes is led in by a ramp of blends from the
+     * frame before it to it — the picture a step of the way between, one
+     * per refresh (gen_left of gen_len steps, the step in pc.extra.x) —
+     * and the frame itself shows at the ramp's end, which
+     * hle_present_unchanged sends around. A 30 fps game on a 120 Hz panel
+     * moves in quarters where it held each frame four refreshes; a game
+     * that keeps up with the display, or only grazes it, never blends:
+     * every refresh has a new frame or holds the last one, and this is all
+     * exactly as before.
      */
     const bool newf = g_ps.serial != g_ps.drawn_serial;
     bool blend = false;
-    if (g_ps.framegen && g_ps.gen_pending) {
-        g_ps.gen_pending = false;      /* the frame itself, after its blend */
-    } else if (g_ps.framegen && newf && g_ps.idle_refreshes > 0 && g_ps.gen_run && g_ps.have &&
-               g_ps.have_prev &&
-               g_ps.f.w == g_ps.fprev.w && g_ps.f.h == g_ps.fprev.h && g_ps.pipe[P_GEN] &&
-               fxaa_target(g_ps.f.w, g_ps.f.h)) {
+    float gen_t = -1.0f;
+    if (g_ps.framegen && g_ps.gen_left > 0) {
+        gen_t = (float)(g_ps.gen_len - g_ps.gen_left + 1) / (float)(g_ps.gen_len + 1);
+        g_ps.gen_left--;             /* this blend shown; the frame at the ramp's end */
         barrier(cb, g_ps.fx_img, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
                 VK_PIPELINE_STAGE_2_FRAGMENT_SHADER_BIT, 0,
                 VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT, VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT);
         rendering(cb, g_ps.fx_view, g_ps.f.w, g_ps.f.h, false);
-        static const float whole[12] = { -1.0f, -1.0f, 1.0f, 1.0f, 0, 0, 0, 0, 1.0f, 0, 0, 1.0f };
+        const float whole[12] = { -1.0f, -1.0f, 1.0f, 1.0f, gen_t, 0, 0, 0, 1.0f, 0, 0, 1.0f };
         quad(cb, f, 1, g_ps.pipe[P_GEN], g_ps.f.view, g_ps.fprev.view, whole, g_ps.f.w, g_ps.f.h);
         T.vkCmdEndRendering(cb);
         barrier(cb, g_ps.fx_img, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
                 VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT,
                 VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT, VK_PIPELINE_STAGE_2_FRAGMENT_SHADER_BIT,
                 VK_ACCESS_2_SHADER_SAMPLED_READ_BIT);
-        g_ps.fx_serial = g_ps.serial;   /* the mid image holds the blend now */
+        g_ps.fx_serial = g_ps.serial;   /* the mid image holds this blend now */
         g_ps.fx_blend = true;
         src = g_ps.fx_view;
         blend = true;
-        g_ps.gen_pending = true;
+    } else {
+        g_ps.gen_frame = false;         /* the frame itself, shown now */
     }
     if (newf || blend) {
         g_ps.drawn_serial = g_ps.serial;
     }
-    g_ps.idle_refreshes = 0;
     /* the frame's pixels per window pixel: over 1 (either axis) averaged
      * down, under 1 scaled up as chosen. FSR's EASU takes the source and
      * the destination sizes per axis (easuCon), so it upscales a frame
@@ -1375,9 +1416,10 @@ void hle_present_end(float sx, float sy, bool fxaa, int upscale, bool average, f
     /* FSR 1: EASU renders the frame (FXAA is left out while it runs — RCAS
      * sharpens) into the image of its place in the window; RCAS below then
      * draws that into the window. Skipped when the image already holds this
-     * picture (a refresh without a new one); the blend counts as its own
-     * picture — after one, the frame itself renders again. */
-    if (fsr && (g_ps.fsr_serial != g_ps.serial || g_ps.fsr_blend != blend)) {
+     * picture (a refresh without a new one); each blend of the ramp is its
+     * own picture (its step in the mix), and after them the frame itself
+     * renders again. */
+    if (fsr && (g_ps.fsr_serial != g_ps.serial || g_ps.fsr_t != gen_t)) {
         barrier(cb, g_ps.fsr_img, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
                 VK_PIPELINE_STAGE_2_FRAGMENT_SHADER_BIT, 0,
                 VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT, VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT);
@@ -1392,7 +1434,7 @@ void hle_present_end(float sx, float sy, bool fxaa, int upscale, bool average, f
                 VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT, VK_PIPELINE_STAGE_2_FRAGMENT_SHADER_BIT,
                 VK_ACCESS_2_SHADER_SAMPLED_READ_BIT);
         g_ps.fsr_serial = g_ps.serial;
-        g_ps.fsr_blend = blend;
+        g_ps.fsr_t = gen_t;
     }
     if (fsr) {
         src = g_ps.fsr_view;

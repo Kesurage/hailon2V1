@@ -41,10 +41,10 @@ static struct {
 bool nc_present_init(void)
 {
     hle_disp_gamma_by_consumer(true); /* before the core starts: frames come without it */
-    nc_log("hakuX-app", "present: Vulkan; FXAA %s, upscaling %s, frame generation %s",
+    nc_log("hakuX-app", "present: Vulkan; FXAA %s, upscaling %s, smooth motion %s",
            g_fxaa ? "on" : "off",
            g_upscale == NC_UPSCALE_SGSR ? "SGSR" : g_upscale == NC_UPSCALE_FSR ? "FSR 1" : "bilinear",
-           g_framegen ? "2x" : "off");
+           g_framegen ? "on" : "off");
     return true;
 }
 
