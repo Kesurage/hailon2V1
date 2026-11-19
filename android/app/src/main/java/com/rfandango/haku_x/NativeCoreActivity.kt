@@ -84,11 +84,8 @@ class NativeCoreActivity : SDLActivity(), InputManager.InputDeviceListener {
       linesWantedSince = 0L
       val s = nativeGetFrameStats()
       if (fpsOn && s != null && s.size >= 3) {
-        var text = "FPS: %.0f  |  %.1fms avg  /  %.1fms last".format(s[0], s[1], s[2])
-        if (s[1] > 0f && s[2] > 2f * s[1]) {
-          text += " *" /* the last frame took over twice the average */
-        }
-        fpsView?.text = text
+        /* the FPS alone: no frame-time clutter over the game */
+        fpsView?.text = "FPS: %.0f".format(s[0])
       }
       hitchView?.takeIf { hitchesOn }?.let { v ->
         val hitches = nativeGetHleHitches()
@@ -1179,6 +1176,9 @@ class NativeCoreActivity : SDLActivity(), InputManager.InputDeviceListener {
     const val UPSCALE_SGSR = "sgsr"
     const val PREF_STICK_SENSITIVITY = "stick_sensitivity"
     const val PREF_STICK_DEAD_ZONE = "stick_dead_zone"
+    const val PREF_LOOK_SENSITIVITY = "look_sensitivity"
+    const val PREF_SWIPE_LOOK = "swipe_look"
+    const val PREF_FLOATING_STICK = "floating_stick"
     const val PREF_SWIPE_MENU = "swipe_menu_open"
 
     /** The editor's Photo action's request code (onActivityResult's). */

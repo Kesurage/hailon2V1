@@ -1,5 +1,26 @@
 # Changelog
 
+## v1.6.0
+
+The Halo 2 launcher update: touch controls that work like a mobile game's, Halo 2 at 60 fps out of the box, and a full screen that fills without stretching.
+
+### Touch controls
+- **Swipe to look** — a drag anywhere on the right of the screen, over no button, aims the camera, as mobile shooters do: the drag starts where the finger lands, short drags aim finely, long ones turn fast. The right stick's button still works beside it (Settings → Controls → Swipe to look)
+- **Floating move stick** — the move stick appears wherever the left thumb lands, instead of only at its fixed place; it goes back when the finger lifts (Settings → Controls → Floating move stick)
+- **Look sensitivity of its own** — the camera's sensitivity is separate from the move stick's, with a wider range (Settings → Controls), a smaller dead zone for fine aim, and smoothing that takes out the touchscreen's jitter
+- **A smoother digitizer** — touch events are taken unbatched, and the in-between samples of each move reach the sticks: the camera follows the finger at the panel's own rate, not at the frames' batches
+- **Mobile controls skin** — the sticks draw as a mobile game's, a clean ring with a knob, not the Xbox controller's cross-grooved cap; the face buttons sit in a proper diamond, the triggers read LT and RT, and the D-pad is small beside the buttons. The saved arrangement from before v1.6.0 gives way to the new one (the editor still changes everything)
+- **The menu gestures keep out of the camera's way** — a swipe on the right of the screen can no longer open the menu mid-aim; the menu's swipe starts on the left and in the middle
+
+### Halo 2
+- **60 fps patch on from the start** — every Halo 2 release (NTSC, PAL and the regional ones) runs with its 60 fps patch enabled out of the box: up to 60 frames a second at the game's normal speed. Turn it off, or take 120 fps instead, in the library's Halo 2 card (Patches) — the choice is kept
+- **The launcher's front** — the library opens on a Halo 2 card: Play, the 60 fps patch's switch, and this game's own settings and patches, one place, not the universal settings' rounds
+
+### Display
+- **Fill the screen by default** — the picture covers the whole screen with the spill cropped away, undistorted: no black bars and no stretching (Settings → Display → Aspect ratio keeps Auto, 4:3, 16:9, Stretch and Fill)
+- **Widescreen by default** — the console reports itself widescreen, so Halo 2 renders 16:9 and fills with the least cropped away
+- **The FPS line is the FPS alone** — the frame times left it
+
 ## v1.3.0
 
 Xbox Live through Insignia, and game fixes.

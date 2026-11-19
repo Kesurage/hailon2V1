@@ -269,45 +269,43 @@ class ControlPainter(private val context: Context? = null) {
     text.letterSpacing = 0f
   }
 
-  /* A thumbstick: the dark base, the cap moved by the deflection, concave with the cross grooves. */
+  /*
+   * A thumbstick the way a mobile game's looks: a clean translucent ring,
+   * the knob a plain disc that follows the thumb. Held (a finger on it),
+   * the ring and the knob's rim brighten: the stick is live. The Xbox
+   * controller's cross-grooved cap went: on a glass screen that read as a
+   * crosshair, not as a stick.
+   */
   private fun stick(c: Canvas, s: ControlSpec, kx: Float, ky: Float) {
     val r = s.radius
-    socket(c, s.cx, s.cy, r, fill = WELL_FILL)
-    val kr = r * 0.58f
-    val travel = r - kr * 0.75f
+    val held = kx != 0f || ky != 0f
+    // The base: a faint dark disc so the ring reads on any picture.
+    p.shader = null
+    p.style = Paint.Style.FILL
+    p.color = Color.argb(WELL_FILL, 8, 8, 8)
+    c.drawCircle(s.cx, s.cy, r, p)
+    p.style = Paint.Style.STROKE
+    p.strokeWidth = maxOf(2f, r * 0.05f)
+    p.color = if (held) Color.argb(215, 255, 255, 255) else Color.argb(110, 255, 255, 255)
+    c.drawCircle(s.cx, s.cy, r * 0.96f, p)
+
+    // The knob, at the deflection.
+    val kr = r * 0.42f
+    val travel = r - kr
     val x = s.cx + kx * travel
     val y = s.cy + ky * travel
-
-    // Everything concentric, lit straight from above: a soft shadow all round
-    // the cap, the cap brighter at the top, the dish darker at the top (concave).
     p.style = Paint.Style.FILL
     shade(RadialGradient(
-      x, y, kr * 1.2f,
-      intArrayOf(Color.argb(110, 0, 0, 0), Color.argb(110, 0, 0, 0), Color.argb(0, 0, 0, 0)),
-      floatArrayOf(0f, 0.8f, 1f), Shader.TileMode.CLAMP,
-    ))
-    c.drawCircle(x, y, kr * 1.2f, p)
-    shade(LinearGradient(
-      0f, y - kr, 0f, y + kr,
-      intArrayOf(0xFF5E5E5E.toInt(), 0xFF323232.toInt(), 0xFF161616.toInt()),
-      floatArrayOf(0f, 0.5f, 1f), Shader.TileMode.CLAMP,
+      x - kr * 0.3f, y - kr * 0.35f, kr * 1.5f,
+      intArrayOf(0xFF444446.toInt(), 0xFF1C1C1E.toInt(), 0xFF0C0C0D.toInt()),
+      floatArrayOf(0f, 0.55f, 1f), Shader.TileMode.CLAMP,
     ))
     c.drawCircle(x, y, kr, p)
-    val dish = kr * 0.74f
-    shade(LinearGradient(
-      0f, y - dish, 0f, y + dish,
-      0xFF1C1C1C.toInt(), 0xFF3A3A3A.toInt(), Shader.TileMode.CLAMP,
-    ))
-    c.drawCircle(x, y, dish, p)
     p.shader = null
     p.style = Paint.Style.STROKE
-    p.strokeCap = Paint.Cap.ROUND
-    p.strokeWidth = kr * 0.07f
-    p.color = 0xFF121212.toInt()
-    for ((dx, dy) in AXES) {
-      c.drawLine(x + dx * kr * 0.2f, y + dy * kr * 0.2f, x + dx * kr * 0.6f, y + dy * kr * 0.6f, p)
-    }
-    p.strokeCap = Paint.Cap.BUTT
+    p.strokeWidth = maxOf(1.5f, kr * 0.1f)
+    p.color = if (held) Color.argb(205, 255, 255, 255) else Color.argb(120, 255, 255, 255)
+    c.drawCircle(x, y, kr * 0.94f, p)
   }
 
   /*
@@ -424,7 +422,7 @@ class ControlPainter(private val context: Context? = null) {
     p.color = Color.argb(90, 255, 255, 255)
     c.drawPath(path, p)
 
-    text.textSize = r * 0.8f
+    text.textSize = if (s.id.label.length > 1) r * 0.55f else r * 0.8f
     text.color = Color.argb(225, 235, 235, 235)
     c.drawText(s.id.label, s.cx, s.cy + text.textSize * 0.35f, text)
   }
@@ -481,7 +479,6 @@ class ControlPainter(private val context: Context? = null) {
     const val DPAD_LEFT = 4
     const val DPAD_RIGHT = 8
 
-    private val AXES = listOf(0f to -1f, 0f to 1f, -1f to 0f, 1f to 0f)
     private val DIRS = listOf(
       Triple(DPAD_UP, 0f, -1f),
       Triple(DPAD_DOWN, 0f, 1f),

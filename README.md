@@ -36,6 +36,49 @@ v1.3.0 release, and adds:
   GitHub Release on every `v*` tag. The in-app updater follows this
   repository's releases.
 
+## v1.6.0 — the Halo 2 launcher update
+
+What 1.5.0's feedback asked for: touch controls that behave like a mobile
+game's, Halo 2 above 30 fps, a screen that fills, and the launcher's front
+being the game, not the emulator.
+
+- **Swipe to look** — a drag anywhere on the right of the screen, over no
+  button, aims the camera the way mobile shooters do: the drag starts where
+  the finger lands, short drags aim finely, long ones turn fast. The visible
+  right stick still works beside it; Settings → Controls turns the zone off.
+- **Floating move stick** — the left stick appears wherever the left thumb
+  lands and returns when the finger lifts (Settings → Controls).
+- **Look sensitivity of its own** — a separate slider with a wider range
+  (0.3–3.0×), a smaller dead zone for the fine aim, and smoothing that
+  removes the touchscreen's jitter. Touch arrives unbatched with the
+  in-between samples of each move, so the camera follows the finger at the
+  panel's own rate.
+- **A mobile controls skin** — the sticks draw as a mobile game's (a clean
+  ring and a knob — the Xbox cap's cross grooves read as a crosshair on
+  glass), the face buttons form a proper diamond, the triggers read LT/RT,
+  the D-pad is small beside the buttons, and Halo 2's scope (right stick
+  click) has its own button. Pre-1.6.0 saved arrangements give way to the
+  new default; the editor still moves, sizes, hides and icons everything.
+- **Halo 2 at 60 fps out of the box** — every Halo 2 release (NTSC `4D530064`,
+  PAL `4D53004B`, and the regional `4D530051` / `4D53006E`) starts with its
+  60 fps patch enabled: up to 60 frames a second at the game's normal speed,
+  the engine's real patch (the frame limiter's vblank floor lifted, the game
+  time kept at 30 ticks a second). The library's Halo 2 card switches it, or
+  120 fps, under Patches; the choice is kept.
+- **The launcher's front** — the library opens on a Halo 2 card: Play, the
+  60 fps switch, and this game's own settings and patches in one place,
+  instead of the universal settings' rounds.
+- **Fill by default** — the picture covers the whole screen with the spill
+  cropped (undistorted): no black bars on launch. The console reports itself
+  widescreen by default, so Halo 2 renders 16:9 and fills with the least
+  cropped away. Aspect ratio and screen format stay in Settings → Display.
+- **FPS-only HUD** — the frame times are gone; the line reads `FPS: 60`.
+
+### To do (not in this release)
+
+- Motion-blur-off mod; MSAA as a quality option; per-game FSR sharpness.
+- A panvk driver package for the G57 to try from the settings.
+
 ## v1.5.0 — what 1.4.0's feedback asked for
 
 - **Fill (crop) aspect mode** — the real answer to "full screen doesn't fill
@@ -66,9 +109,8 @@ v1.3.0 release, and adds:
 
 ### To do (not in this release)
 
-- Motion-blur-off and per-game 60 fps mods (the engine's mod loader already
-  ships: Settings per game → Mods & cheats; `tools/mods/` has Halo 2 120 fps
-  tooling upstream).
+- Motion-blur-off and per-game 60 fps mods — **done in v1.6.0** (Halo 2's 60
+  fps patch is on from the start, and the library's Halo 2 card switches it).
 - MSAA as a quality option; per-game FSR sharpness.
 - A panvk driver package for the G57 to try from the settings.
 

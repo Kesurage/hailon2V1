@@ -77,6 +77,12 @@
   <string name="library_no_folder">No folder selected</string>
   <string name="library_loading_games">Loading games</string>
   <string name="library_loading_discs">Reading discs: %1$d of %2$d</string>
+  <string name="hero_play">Play</string>
+  <string name="hero_60fps">60 fps</string>
+  <string name="hero_60fps_on">60 FPS PATCH ON</string>
+  <string name="hero_60fps_off">60 fps patch off</string>
+  <string name="hero_game_settings">Game settings</string>
+  <string name="hero_patches">Patches</string>
   <string name="library_empty_games">No supported games found in this folder.</string>
   <string name="library_empty_probe_nofiles">The folder is empty. Put a game image (.iso, .xiso, .cso or .cci) in it, or pick the folder your images are in.</string>
   <string name="library_empty_probe_files">The folder has %1$d files, none of them playable. Playable formats: .iso, .xiso, .cso, .cci.</string>
@@ -207,8 +213,13 @@
   <string name="settings_preset_speed">Performance preset (1x + FSR 1)</string>
   <string name="settings_preset_speed_desc">Sets the resolution scale to 1x, the upscaler to FSR 1 and FXAA off: the fastest good-looking combination on a slow GPU.</string>
   <string name="settings_stick_sensitivity">Stick sensitivity %1$.2f×</string>
+  <string name="settings_look_sensitivity">Look (camera) sensitivity %1$.2f×</string>
   <string name="settings_stick_dead_zone">Stick dead zone %1$d%%</string>
-  <string name="settings_stick_desc">How the on-screen sticks respond: higher sensitivity reaches full tilt sooner, the dead zone is how far from a stick\'s centre a touch is ignored.</string>
+  <string name="settings_stick_desc">How the on-screen controls respond: the move stick\'s sensitivity, the camera\'s own (how far a swipe turns), and the dead zone — how far from a stick\'s centre a touch is ignored.</string>
+  <string name="settings_swipe_look">Swipe to look</string>
+  <string name="settings_swipe_look_desc">A drag anywhere on the right of the screen, over no button, aims the camera — as a mobile game\'s touch controls. The right stick\'s own button still works; turn this off to use it alone.</string>
+  <string name="settings_floating_stick">Floating move stick</string>
+  <string name="settings_floating_stick_desc">The move stick appears wherever the left thumb lands, instead of only at its fixed place — as a mobile game\'s joystick.</string>
   <string name="settings_swipe_menu">Swipe opens the menu</string>
   <string name="settings_swipe_menu_desc">Swipe up from the bottom of the picture, or down from the top, to open the game\'s menu — over the picture, not over a control.</string>
   <string name="settings_section_console">Console</string>

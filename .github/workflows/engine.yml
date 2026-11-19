@@ -95,34 +95,46 @@ jobs:
           TAG="${GITHUB_REF#refs/tags/}"
           V="${{ env.VERSION }}"
           cat > release-notes.md <<EOF
-          hailon2V1 ${{ env.VERSION }} — fill (crop) full screen, custom icon controls, swipe, tunable sticks
+          hailon2V1 ${{ env.VERSION }} — the Halo 2 launcher update
 
-          Over 1.4.0 (FSR 1.0, smooth stick ramps, FPS-only HUD — and its
-          feedback, applied here):
+          Over 1.5.0:
 
-          - Picture shape → Fill (crop the edges): the whole screen covered
-            at one scale, no distortion, the spill over the panel's shape
-            cropped centred. Stretch still exists; Fill is the undistorted
-            full screen.
-          - Custom icon controls: the editor bar's Icon actions cycle a
-            button's look — jewel, flat disc, thin ring, or your own picture
-            (Photo… from the gallery, circle-cropped in place). Sticks, the
-            D-pad and the menu keep their looks.
-          - Touch sticks you calibrate: the 1.4.0 curve is back to neutral
-            (linear from the dead zone's edge to the rim), with new sliders
-            in Settings → Controls — sensitivity 0.5-1.6x, dead zone 5-30%.
-          - Swipe up from the bottom, or down from the top, opens the menu
-            (a switch turns it off; it never starts on a control).
-          - FSR 1 made honest: the shaders were proven valid with glslang,
-            the sharpening set to AMD's sample default (visible), and when
-            FSR can't apply the core logs why instead of silently falling
-            back — it applies when the picture is smaller than its place
-            (always true at scale 1x).
-          - Performance preset in Settings → Graphics: scale 1x + FSR 1 +
-            FXAA off, one tap.
+          - Touch controls that work like a mobile game's:
+            - Swipe to look — a drag anywhere on the right of the screen
+              (over no button) aims the camera, as mobile shooters do. The
+              drag starts wherever the finger lands; short drags aim finely,
+              long ones turn fast.
+            - Floating move stick — the left stick appears wherever the left
+              thumb lands, and goes back when the finger lifts.
+            - Look sensitivity of its own (Settings → Controls), with a
+              wider range, a smaller dead zone for fine aim, and smoothing
+              that takes out the touchscreen's jitter.
+            - Touch taken unbatched, with the in-between samples of each
+              move: the camera follows the finger at the panel's own rate.
+            - A mobile skin: the sticks a clean ring with a knob (the Xbox
+              cap's cross grooves gone), the face buttons a proper diamond,
+              the triggers read LT and RT. A saved arrangement from before
+              1.6.0 gives way to the new one — the editor still changes
+              everything (move, size, hide, icons).
+            - The menu's swipe can no longer start on the camera's side of
+              the screen, so a fast aim never opens the menu mid-shot.
+          - Halo 2 at 60 fps out of the box: every Halo 2 release runs with
+            its 60 fps patch on from the start (up to 60 frames a second at
+            the game's normal speed). Switch it, or take 120 fps, in the
+            library's Halo 2 card under Patches — the choice is kept.
+          - The launcher's front: the library opens on a Halo 2 card — Play,
+            the 60 fps patch's switch, and this game's own settings and
+            patches in one place.
+          - Fill the screen by default: the picture covers the whole screen,
+            the spill cropped, undistorted — no black bars, no stretching
+            (Settings → Display → Aspect ratio keeps every mode, including
+            Auto and Stretch).
+          - The console reports itself widescreen by default, so Halo 2
+            renders 16:9 and fills with the least cropped away.
+          - The HUD shows the FPS alone.
 
           hailon2V1-$V-debug.apk installs beside the stock hakuX (its id ends
-          in .debug) and updates over 1.4.0. hailon2V1-$V-release.apk is the
+          in .debug) and updates over 1.5.0. hailon2V1-$V-release.apk is the
           plain release build.
           GPL-3.0+ — source in this repository.
           EOF

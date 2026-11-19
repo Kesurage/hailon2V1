@@ -95,6 +95,15 @@ class OnScreenController @JvmOverloads constructor(
   private val held = HashMap<ControlId, Int>()          /* button controls: the pointer holding each */
   private val stickPointer = intArrayOf(-1, -1)
   private val stickPos = arrayOf(PointF(), PointF())
+  /* the swipe-look pointer: a touch on the right of the screen over no
+   * control, aiming the camera from wherever it landed (the zone's own
+   * stick: it and the visible right stick take turns, never both) */
+  private var lookPointer = -1
+  private val lookAnchor = PointF()
+  private var lookX = 0f
+  private var lookY = 0f
+  /* a stick floating with its pointer: the layout place to go back to */
+  private val savedHome = arrayOfNulls<PointF>(2)
   private var dpadPointer = -1
   private var dpadBits = 0
   private var menuPointer = -1
@@ -122,10 +131,14 @@ class OnScreenController @JvmOverloads constructor(
   private fun off(s: ControlSpec) = !s.visible || (minimal && (s.id != ControlId.MENU || jewelHidden))
 
   private val touchSlop = ViewConfiguration.get(context).scaledTouchSlop.toFloat()
+  /* A drag on the right of the screen is the camera (swipe look): the menu
+   * gestures take their swipe from the left and the middle only, or a fast
+   * aim would open the menu mid-shot. */
+  private fun inLookZone(x: Float) = prefs.swipeLook && x >= width * 0.42f
   private val swipeUp = SwipeUpGestureRecognizer(
     minDistancePx = { max(height * 0.14f, touchSlop * 8f) },
     touchSlopPx = { touchSlop },
-    canStartAt = { x, y -> y >= height * 0.35f && hit(x, y) == null },
+    canStartAt = { x, y -> y >= height * 0.35f && hit(x, y) == null && !inLookZone(x) },
     onTriggered = {
       releaseAll()
       onMenuButtonTapped?.invoke()
@@ -138,7 +151,7 @@ class OnScreenController @JvmOverloads constructor(
     down = true,
     minDistancePx = { max(height * 0.14f, touchSlop * 8f) },
     touchSlopPx = { touchSlop },
-    canStartAt = { x, y -> y <= height * 0.18f && hit(x, y) == null },
+    canStartAt = { x, y -> y <= height * 0.18f && hit(x, y) == null && !inLookZone(x) },
     onTriggered = {
       releaseAll()
       onMenuButtonTapped?.invoke()
@@ -258,7 +271,7 @@ class OnScreenController @JvmOverloads constructor(
   private fun look(s: ControlSpec): Look = when (s.id.kind) {
     ControlKind.STICK -> {
       val i = stickIndex(s.id)
-      Look(s.cx, s.cy, s.radius, stickPointer[i] != -1, stickPos[i].x, stickPos[i].y, 0)
+      Look(s.cx, s.cy, s.radius, stickPointer[i] != -1 || (i == 1 && lookPointer != -1), stickPos[i].x, stickPos[i].y, 0)
     }
     ControlKind.DPAD -> Look(s.cx, s.cy, s.radius, dpadBits != 0, 0f, 0f, dpadBits)
     ControlKind.MENU -> Look(s.cx, s.cy, s.radius, menuPressed, 0f, 0f, 0)
@@ -289,10 +302,15 @@ class OnScreenController @JvmOverloads constructor(
     var h = held.keys.hashCode()
     h = 31 * h + dpadBits
     h = 31 * h + if (menuPressed) 1 else 0
+    h = 31 * h + if (lookPointer != -1) 1 else 0
     for (i in 0..1) {
       h = 31 * h + if (stickPointer[i] != -1) 1 else 0
       h = 31 * h + stickPos[i].x.toRawBits()
       h = 31 * h + stickPos[i].y.toRawBits()
+      layout?.get(if (i == 0) ControlId.LEFT_STICK else ControlId.RIGHT_STICK)?.let {
+        h = 31 * h + it.cx.toRawBits() /* a stick floats to where its touch landed */
+        h = 31 * h + it.cy.toRawBits()
+      }
     }
     return h
   }
@@ -418,12 +436,26 @@ class OnScreenController @JvmOverloads constructor(
     if (prefs.swipeMenuOpen && (swipeDown.onTouchEvent(event) || swipeUp.onTouchEvent(event))) {
       return
     }
+    /* the digitizer's samples unbatched, each its own event: the look and
+     * the sticks follow the thumb at the panel's own rate, not the batch a
+     * frame gathered — the camera turns as smoothly as the finger moved */
+    if (event.actionMasked == MotionEvent.ACTION_DOWN) {
+      requestUnbufferedDispatch(event)
+    }
     val index = event.actionIndex
     val pointer = event.getPointerId(index)
     when (event.actionMasked) {
       MotionEvent.ACTION_DOWN, MotionEvent.ACTION_POINTER_DOWN -> down(event.getX(index), event.getY(index), pointer)
-      MotionEvent.ACTION_MOVE -> for (i in 0 until event.pointerCount) {
-        move(event.getX(i), event.getY(i), event.getPointerId(i))
+      MotionEvent.ACTION_MOVE -> {
+        for (i in 0 until event.pointerCount) {
+          val p = event.getPointerId(i)
+          if (p == lookPointer || p == stickPointer[0] || p == stickPointer[1]) {
+            for (h in 0 until event.historySize) {
+              route(event.getHistoricalX(i, h), event.getHistoricalY(i, h), p)
+            }
+          }
+          move(event.getX(i), event.getY(i), p)
+        }
       }
       MotionEvent.ACTION_POINTER_UP -> up(pointer)
       MotionEvent.ACTION_UP -> {
@@ -452,7 +484,11 @@ class OnScreenController @JvmOverloads constructor(
   }
 
   private fun down(x: Float, y: Float, pointer: Int) {
-    val id = hit(x, y) ?: return
+    val id = hit(x, y)
+    if (id == null) {
+      grabZone(x, y, pointer)
+      return
+    }
     when (id.kind) {
       ControlKind.MENU -> if (menuPointer == -1) {
         menuPointer = pointer
@@ -461,6 +497,9 @@ class OnScreenController @JvmOverloads constructor(
       ControlKind.STICK -> {
         val i = stickIndex(id)
         if (stickPointer[i] == -1) {
+          if (i == 1 && lookPointer != -1) {
+            endLook() // the visible stick takes over from the zone
+          }
           stickPointer[i] = pointer
           moveStick(i, x, y)
         }
@@ -473,11 +512,41 @@ class OnScreenController @JvmOverloads constructor(
     }
   }
 
+  /**
+   * A touch over no control: the camera on the right of the screen (swipe
+   * look), the move stick floating to it on the left — as a mobile game's
+   * touch controls take the empty screen, not the fixed Duke's places alone.
+   */
+  private fun grabZone(x: Float, y: Float, pointer: Int) {
+    if (minimal) return
+    if (prefs.swipeLook && lookPointer == -1 && stickPointer[1] == -1 &&
+      x >= width * 0.42f && y > height * 0.25f
+    ) {
+      lookPointer = pointer
+      lookAnchor.set(x, y)
+      moveLook(x, y)
+      return
+    }
+    if (prefs.floatingStick && stickPointer[0] == -1 && x < width * 0.42f && y > height * 0.28f) {
+      val s = layout?.get(ControlId.LEFT_STICK) ?: return
+      if (off(s)) return
+      stickPointer[0] = pointer
+      savedHome[0] = PointF(s.cx, s.cy)
+      s.cx = x
+      s.cy = y
+      moveStick(0, x, y)
+    }
+  }
+
   private fun move(x: Float, y: Float, pointer: Int) {
     val l = layout ?: return
     if (pointer == menuPointer) {
       val s = l[ControlId.MENU]
       menuPressed = hypot(x - s.cx, y - s.cy) <= s.radius * ControlPainter.reach(ControlKind.MENU)
+      return
+    }
+    if (pointer == lookPointer) {
+      moveLook(x, y)
       return
     }
     for (i in 0..1) {
@@ -505,6 +574,15 @@ class OnScreenController @JvmOverloads constructor(
     }
   }
 
+  /** A historical sample of a pointer that takes them (the look, the sticks). */
+  private fun route(x: Float, y: Float, pointer: Int) {
+    when (pointer) {
+      lookPointer -> moveLook(x, y)
+      stickPointer[0] -> moveStick(0, x, y)
+      stickPointer[1] -> moveStick(1, x, y)
+    }
+  }
+
   private fun up(pointer: Int) {
     if (pointer == menuPointer) {
       if (menuPressed) {
@@ -512,6 +590,9 @@ class OnScreenController @JvmOverloads constructor(
       }
       menuPressed = false
       menuPointer = -1
+    }
+    if (pointer == lookPointer) {
+      endLook()
     }
     for (i in 0..1) {
       if (stickPointer[i] == pointer) {
@@ -530,8 +611,15 @@ class OnScreenController @JvmOverloads constructor(
     swipeDown.reset()
     menuPressed = false
     menuPointer = -1
+    if (lookPointer != -1) {
+      endLook()
+    }
     for (i in 0..1) {
-      if (stickPointer[i] != -1) releaseStick(i)
+      if (stickPointer[i] != -1) {
+        releaseStick(i)
+      } else {
+        restoreHome(i) /* a float left without its pointer by an interrupt */
+      }
     }
     dpadPointer = -1
     setDpad(0)
@@ -575,35 +663,76 @@ class OnScreenController @JvmOverloads constructor(
 
   private fun moveStick(i: Int, x: Float, y: Float) {
     val s = layout?.get(if (i == 0) ControlId.LEFT_STICK else ControlId.RIGHT_STICK) ?: return
-    var dx = (x - s.cx) / s.radius
-    var dy = (y - s.cy) / s.radius
+    // A floating stick is centred where its touch landed (grabZone moved
+    // its spec there; restoreHome brings it back).
+    applyStick(i, (x - s.cx) / s.radius, (y - s.cy) / s.radius)
+  }
+
+  /**
+   * A stick's deflection from a raw offset in radii, each stick its own
+   * response: the move stick's dead zone and sensitivity, the look stick's
+   * smaller dead zone (its low deflections are the fine aim) and the
+   * camera's own sensitivity — a smooth ramp from the dead zone's edge to
+   * the rim in both, no jump where the dead zone ends. The look is smoothed
+   * besides: the digitizer's jitter gone, the camera steady; the move stick
+   * stays raw, its answer immediate.
+   */
+  private fun applyStick(i: Int, dx: Float, dy: Float) {
     val m = hypot(dx, dy)
-    if (m > 1f) {
-      dx /= m
-      dy /= m
+    val dead = if (i == 0) prefs.stickDeadZone else prefs.stickDeadZone * 0.6f
+    val sens = if (i == 0) prefs.stickSensitivity else prefs.lookSensitivity
+    var kx = 0f
+    var ky = 0f
+    if (m > dead && m > 0f) {
+      val k = ((m - dead) / (1f - dead) * sens).coerceIn(0f, 1f)
+      kx = dx / m * k
+      ky = dy / m * k
     }
-    val dead = prefs.stickDeadZone
-    if (m <= dead) {
-      dx = 0f
-      dy = 0f
-    } else {
-      // A smooth ramp from the dead zone's edge (0) to the rim (1): no jump
-      // where the dead zone ends, unlike a hard cut to the raw deflection.
-      // Sensitivity bends the ramp — 1.0 linear, under it gentler, over it
-      // full tilt sooner (the sliders in Settings → Controls).
-      val k = ((m - dead) / (1f - dead) * prefs.stickSensitivity).coerceIn(0f, 1f)
-      val scale = k / m
-      dx *= scale
-      dy *= scale
+    if (i == 1) {
+      lookX += (kx - lookX) * LOOK_SMOOTH
+      lookY += (ky - lookY) * LOOK_SMOOTH
+      kx = lookX
+      ky = lookY
     }
-    stickPos[i].set(dx, dy)
-    listener?.onStickMoved(if (i == 0) Stick.LEFT else Stick.RIGHT, dx, dy)
+    stickPos[i].set(kx, ky)
+    listener?.onStickMoved(if (i == 0) Stick.LEFT else Stick.RIGHT, kx, ky)
+  }
+
+  /** The camera from a swipe on the empty right of the screen: the offset from where it landed. */
+  private fun moveLook(x: Float, y: Float) {
+    applyStick(1, (x - lookAnchor.x) / lookTravel, (y - lookAnchor.y) / lookTravel)
+  }
+
+  /** The drag that is the look's full deflection: the sensitivity's own scale. */
+  private val lookTravel get() = height * 0.18f
+
+  private fun endLook() {
+    lookPointer = -1
+    lookX = 0f
+    lookY = 0f
+    stickPos[1].set(0f, 0f)
+    listener?.onStickMoved(Stick.RIGHT, 0f, 0f)
   }
 
   private fun releaseStick(i: Int) {
     stickPointer[i] = -1
     stickPos[i].set(0f, 0f)
+    if (i == 1) {
+      lookX = 0f
+      lookY = 0f
+    }
+    restoreHome(i)
     listener?.onStickMoved(if (i == 0) Stick.LEFT else Stick.RIGHT, 0f, 0f)
+  }
+
+  /** The layout's place back for a stick that floated. */
+  private fun restoreHome(i: Int) {
+    val home = savedHome[i] ?: return
+    layout?.get(if (i == 0) ControlId.LEFT_STICK else ControlId.RIGHT_STICK)?.let {
+      it.cx = home.x
+      it.cy = home.y
+    }
+    savedHome[i] = null
   }
 
   /* Eight ways: 45-degree sectors around the axes; the middle is neutral. */
@@ -919,6 +1048,8 @@ class OnScreenController @JvmOverloads constructor(
 
   private companion object {
     val ACCENT = 0xFF8BC34A.toInt()
+    /** The look's smoothing: this much of the way to each new deflection. */
+    const val LOOK_SMOOTH = 0.5f
     val DPAD_BUTTONS = listOf(
       ControlPainter.DPAD_UP to Button.DPAD_UP,
       ControlPainter.DPAD_DOWN to Button.DPAD_DOWN,

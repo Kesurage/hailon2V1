@@ -181,10 +181,18 @@ class ModChoices(context: Context, private val game: String) {
   private val file = File(context.filesDir, FILE)
   private val app = context.applicationContext
 
-  fun mod(id: String) = read().optBoolean("$game/mod/$id", false)
+  /**
+   * A mod's state. The 60 fps patch is on from the start for Halo 2 — the
+   * game this launcher is for; the choice once made (either way) is kept,
+   * like every other mod's.
+   */
+  fun mod(id: String) = read().optBoolean("$game/mod/$id", id == "60fps" && isHalo2())
   fun setMod(id: String, on: Boolean) = write("$game/mod/$id", on)
   fun cheat(name: String) = read().optBoolean("$game/cheat/$name", false)
   fun setCheat(name: String, on: Boolean) = write("$game/cheat/$name", on)
+
+  /** This game is a Halo 2 release (its key's title ID is one of theirs). */
+  private fun isHalo2() = game.substringBefore('.') in HALO2_TITLE_IDS
 
   private fun read(): JSONObject = synchronized(LOCK) {
     if (!file.exists()) {
@@ -213,6 +221,8 @@ class ModChoices(context: Context, private val game: String) {
     const val NAME = "per_game_mods"
     private const val FILE = "mod_choices.json"
     private val LOCK = Any()
+    /** Halo 2's releases (the mods/ folders with its 60 fps patches): NTSC, PAL and the regional ones. */
+    val HALO2_TITLE_IDS = setOf("4D530064", "4D53004B", "4D530051", "4D53006E")
   }
 }
 

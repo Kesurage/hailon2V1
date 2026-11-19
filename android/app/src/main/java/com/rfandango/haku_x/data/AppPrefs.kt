@@ -90,9 +90,14 @@ class AppPrefs(context: Context) {
     get() = sp.getInt(NativeCoreActivity.PREF_SCALE, NativeCoreActivity.DEFAULT_SCALE)
     set(value) = sp.edit { putInt(NativeCoreActivity.PREF_SCALE, value) }
 
-  /** The picture's shape: auto, 4:3, 16:9, stretch or fill (read at game start). */
+  /**
+   * The picture's shape: auto, 4:3, 16:9, stretch or fill (read at game start).
+   * This fork's default is fill: the frame covers the screen, the spill
+   * cropped — edge to edge with no black bars and no stretching (the "auto"
+   * default letterboxed 4:3 frames on a phone's tall screen).
+   */
   var aspectRatio: String
-    get() = sp.getString(NativeCoreActivity.PREF_ASPECT, NativeCoreActivity.ASPECT_AUTO) ?: NativeCoreActivity.ASPECT_AUTO
+    get() = sp.getString(NativeCoreActivity.PREF_ASPECT, NativeCoreActivity.ASPECT_FILL) ?: NativeCoreActivity.ASPECT_FILL
     set(value) = sp.edit { putString(NativeCoreActivity.PREF_ASPECT, value) }
 
   /** FXAA over each frame before it's scaled to the screen (read at game start). */
@@ -111,6 +116,25 @@ class AppPrefs(context: Context) {
     get() = sp.getFloat(NativeCoreActivity.PREF_STICK_DEAD_ZONE, 0.15f)
     set(value) = sp.edit { putFloat(NativeCoreActivity.PREF_STICK_DEAD_ZONE, value) }
 
+  /**
+   * The look (right) stick's own response, apart from the move stick's: how
+   * far the thumb drags for full turn, as mobile shooters' camera
+   * sensitivity (read at game start).
+   */
+  var lookSensitivity: Float
+    get() = sp.getFloat(NativeCoreActivity.PREF_LOOK_SENSITIVITY, 1.0f)
+    set(value) = sp.edit { putFloat(NativeCoreActivity.PREF_LOOK_SENSITIVITY, value) }
+
+  /** A drag on the right of the screen, over no control, aims the camera (swipe look). */
+  var swipeLook: Boolean
+    get() = sp.getBoolean(NativeCoreActivity.PREF_SWIPE_LOOK, true)
+    set(value) = sp.edit { putBoolean(NativeCoreActivity.PREF_SWIPE_LOOK, value) }
+
+  /** The move stick floats to wherever the left thumb lands, like a mobile game's. */
+  var floatingStick: Boolean
+    get() = sp.getBoolean(NativeCoreActivity.PREF_FLOATING_STICK, true)
+    set(value) = sp.edit { putBoolean(NativeCoreActivity.PREF_FLOATING_STICK, value) }
+
   /** A swipe up from the bottom (or down from the top) over the picture opens the menu. */
   var swipeMenuOpen: Boolean
     get() = sp.getBoolean(NativeCoreActivity.PREF_SWIPE_MENU, true)
@@ -125,9 +149,13 @@ class AppPrefs(context: Context) {
   // The console's video settings, as its dashboard keeps them (EEPROM video
   // flags and the AV cable): games choose their display modes from these.
 
-  /** normal (4:3), letterbox or widescreen. */
+  /**
+   * normal (4:3), letterbox or widescreen. This fork's default is
+   * widescreen: Halo 2 renders anamorphic 16:9, which fills a phone's
+   * screen under the fill aspect with the least cropped away.
+   */
   var screenFormat: String
-    get() = sp.getString(KEY_SCREEN_FORMAT, FORMAT_NORMAL) ?: FORMAT_NORMAL
+    get() = sp.getString(KEY_SCREEN_FORMAT, FORMAT_WIDESCREEN) ?: FORMAT_WIDESCREEN
     set(value) = sp.edit { putString(KEY_SCREEN_FORMAT, value) }
 
   var video480p: Boolean

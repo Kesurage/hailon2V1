@@ -15,7 +15,7 @@ enum class ControlKind { FACE, GEM, PILL, STICK, DPAD, TRIGGER, CLICK, MENU }
  */
 enum class ControlStyle { JEWEL, DISC, RING, PHOTO }
 
-/** The on-screen controller's controls, laid out like the original Xbox controller (the "Duke"). */
+/** The on-screen controller's controls. */
 enum class ControlId(val kind: ControlKind, val label: String, val title: String) {
   A(ControlKind.FACE, "A", "A button"),
   B(ControlKind.FACE, "B", "B button"),
@@ -25,8 +25,8 @@ enum class ControlId(val kind: ControlKind, val label: String, val title: String
   BLACK(ControlKind.GEM, "", "Black button"),
   BACK(ControlKind.PILL, "BACK", "Back"),
   START(ControlKind.PILL, "START", "Start"),
-  LEFT_TRIGGER(ControlKind.TRIGGER, "L", "Left trigger"),
-  RIGHT_TRIGGER(ControlKind.TRIGGER, "R", "Right trigger"),
+  LEFT_TRIGGER(ControlKind.TRIGGER, "LT", "Left trigger"),
+  RIGHT_TRIGGER(ControlKind.TRIGGER, "RT", "Right trigger"),
   LEFT_STICK(ControlKind.STICK, "", "Left stick"),
   RIGHT_STICK(ControlKind.STICK, "", "Right stick"),
   LEFT_STICK_CLICK(ControlKind.CLICK, "LS", "Left stick click"),
@@ -65,6 +65,8 @@ class OverlayLayout(val controls: MutableMap<ControlId, ControlSpec>) {
  */
 object OverlayStore {
   private const val FILE = "overlay_layout.json"
+  /** The layout file's version: one below drops back to the defaults. */
+  private const val VERSION = 3
   /** Half see-through: the game stays visible under the controls. */
   const val DEFAULT_OPACITY = 0.5f
 
@@ -85,6 +87,12 @@ object OverlayStore {
     }
     try {
       val root = JSONObject(file.readText())
+      /* An arrangement from before this version (the Duke's, with its offset
+       * button columns) reads as the new one's places instead: drop it, the
+       * mobile arrangement is the default the editor starts from again. */
+      if (root.optInt("version", 0) < VERSION) {
+        return layout
+      }
       val controls = root.optJSONObject("controls") ?: return layout
       for (id in ControlId.entries) {
         val c = controls.optJSONObject(id.name) ?: continue
@@ -117,7 +125,7 @@ object OverlayStore {
       })
     }
     val root = JSONObject().apply {
-      put("version", 2)
+      put("version", VERSION)
       put("controls", controls)
     }
     val file = File(context.filesDir, FILE)
@@ -136,43 +144,46 @@ object OverlayStore {
   fun maxRadius(h: Float) = h * 0.35f
 
   /**
-   * The Duke's arrangement on a landscape screen: left stick up and left with
-   * the D-pad below and inside it; the face buttons in two offset columns
-   * (Y over X, B over A, the right column half a row lower) with white and
-   * black above them; the right stick below and inside them; back, the jewel
-   * (the menu) and start at the bottom centre; the triggers in the top corners.
+   * A mobile game's arrangement on a landscape screen: the move stick low
+   * left (it floats to wherever the left thumb lands), the face buttons a
+   * clean diamond right of centre, the D-pad small beside them, the right
+   * stick hidden — the right of the screen is the camera (a drag anywhere
+   * over no control aims), its click (Halo 2's scope) a button of its own
+   * under the diamond. The triggers sit in the top corners, white and black
+   * small at the top middle, and the menu jewel with back and start at the
+   * bottom centre.
    */
   fun defaults(w: Float, h: Float): OverlayLayout {
     val c = LinkedHashMap<ControlId, ControlSpec>()
-    fun put(id: ControlId, x: Float, y: Float, r: Float) {
-      c[id] = ControlSpec(id, x, y, r)
+    fun put(id: ControlId, x: Float, y: Float, r: Float, visible: Boolean = true) {
+      c[id] = ControlSpec(id, x, y, r, visible)
     }
-    val face = h * 0.072f
-    val sx = face * 2.15f
-    val sy = face * 2.3f
+    put(ControlId.LEFT_STICK, h * 0.28f, h * 0.62f, h * 0.15f)
+    put(ControlId.LEFT_STICK_CLICK, h * 0.08f, h * 0.88f, h * 0.042f)
+    put(ControlId.DPAD, w * 0.46f, h * 0.80f, h * 0.082f)
+
+    val face = h * 0.064f
+    val d = h * 0.134f
     val fx = w - h * 0.27f
-    val fy = h * 0.47f
-    put(ControlId.Y, fx - sx / 2, fy - sy * 0.75f, face)
-    put(ControlId.X, fx - sx / 2, fy + sy * 0.25f, face)
-    put(ControlId.B, fx + sx / 2, fy - sy * 0.25f, face)
-    put(ControlId.A, fx + sx / 2, fy + sy * 0.75f, face)
-    val gem = h * 0.05f
-    put(ControlId.WHITE, fx - sx * 0.05f, fy - sy * 1.55f, gem)
-    put(ControlId.BLACK, fx + sx * 0.95f, fy - sy * 1.15f, gem)
+    val fy = h * 0.50f
+    put(ControlId.Y, fx, fy - d, face)
+    put(ControlId.X, fx - d, fy, face)
+    put(ControlId.B, fx + d, fy, face)
+    put(ControlId.A, fx, fy + d, face)
+    put(ControlId.RIGHT_STICK_CLICK, fx - h * 0.33f, fy + h * 0.30f, h * 0.048f)
+    put(ControlId.RIGHT_STICK, w - h * 0.30f, h * 0.68f, h * 0.13f, visible = false)
 
-    put(ControlId.LEFT_STICK, h * 0.27f, h * 0.43f, h * 0.135f)
-    put(ControlId.DPAD, h * 0.58f, h * 0.78f, h * 0.125f)
-    put(ControlId.RIGHT_STICK, w - h * 0.58f, h * 0.78f, h * 0.125f)
-    put(ControlId.LEFT_STICK_CLICK, h * 0.10f, h * 0.72f, h * 0.045f)
-    put(ControlId.RIGHT_STICK_CLICK, w - h * 0.33f, h * 0.92f, h * 0.045f)
+    val gem = h * 0.040f
+    put(ControlId.WHITE, w / 2 - h * 0.13f, h * 0.10f, gem)
+    put(ControlId.BLACK, w / 2 + h * 0.13f, h * 0.10f, gem)
 
-    val pill = h * 0.05f
-    put(ControlId.MENU, w / 2, h * 0.86f, h * 0.06f)
-    put(ControlId.BACK, w / 2 - h * 0.2f, h * 0.9f, pill)
-    put(ControlId.START, w / 2 + h * 0.2f, h * 0.9f, pill)
+    val pill = h * 0.042f
+    put(ControlId.MENU, w / 2, h * 0.92f, h * 0.05f)
+    put(ControlId.BACK, w / 2 - h * 0.17f, h * 0.92f, pill)
+    put(ControlId.START, w / 2 + h * 0.17f, h * 0.92f, pill)
 
-    put(ControlId.LEFT_TRIGGER, h * 0.12f, h * 0.12f, h * 0.075f)
-    put(ControlId.RIGHT_TRIGGER, w - h * 0.12f, h * 0.12f, h * 0.075f)
+    put(ControlId.LEFT_TRIGGER, h * 0.14f, h * 0.13f, h * 0.064f)
+    put(ControlId.RIGHT_TRIGGER, w - h * 0.14f, h * 0.13f, h * 0.064f)
     return OverlayLayout(c)
   }
 }

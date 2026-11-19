@@ -41,6 +41,7 @@ import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Button
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -49,6 +50,7 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
@@ -108,6 +110,7 @@ import com.rfandango.haku_x.data.DiscInfo
 import com.rfandango.haku_x.data.Game
 import com.rfandango.haku_x.data.GameOverrides
 import com.rfandango.haku_x.data.ModCatalog
+import com.rfandango.haku_x.data.ModChoices
 import com.rfandango.haku_x.data.SaveStateStore
 import com.rfandango.haku_x.data.Updates
 import com.rfandango.haku_x.data.XisoConverter
@@ -205,7 +208,22 @@ fun LibraryScreen(
               }
             }
           }
-          else -> GameList(games, state.info, state.icons, onLaunch, onGameSettings, onLoadState, onMods, vm::askConvert)
+          else -> {
+            /* The launcher's front: Halo 2, the game this is for, over the
+             * list — its play button, its 60 fps patch and its own settings
+             * and patches right there. */
+            val hero = remember(games, state.info) {
+              games.firstNotNullOfOrNull { g ->
+                state.info[g.uri]?.takeIf { it.titleIdText in ModChoices.HALO2_TITLE_IDS }?.let { g to it }
+              }
+            }
+            Column(Modifier.fillMaxSize()) {
+              hero?.let { (game, disc) ->
+                Halo2Hero(game, disc, onLaunch, onGameSettings, onMods)
+              }
+              GameList(games, state.info, state.icons, onLaunch, onGameSettings, onLoadState, onMods, vm::askConvert)
+            }
+          }
         }
       }
     }
@@ -422,6 +440,94 @@ private fun GameList(
     )
   }
 }
+
+/**
+ * The front of the launcher: the Halo 2 this app is for, above the library —
+ * its play button, its 60 fps patch (on from the start), and its own
+ * settings and patches, one place, this game's alone.
+ */
+@Composable
+private fun Halo2Hero(
+  game: Game,
+  disc: DiscInfo,
+  onLaunch: (Game) -> Unit,
+  onGameSettings: (Game, DiscInfo?) -> Unit,
+  onMods: (Game, DiscInfo) -> Unit,
+) {
+  val context = LocalContext.current
+  val key = remember(game.uri, disc.titleId, disc.version) {
+    GameOverrides.gameKey(disc.titleId, disc.version, game.relativePath)
+  }
+  val has60 = remember(key) { ModCatalog.load(context, key).mods.any { it.id == "60fps" } }
+  var fps60 by remember(key) { mutableStateOf(ModChoices(context, key).mod("60fps")) }
+  val hasMods = remember(key) { ModCatalog.has(context, key) }
+  val colors = MaterialTheme.colorScheme
+
+  Row(
+    Modifier
+      .fillMaxWidth()
+      .padding(start = 16.dp, end = 16.dp, bottom = 10.dp)
+      .clip(RoundedCornerShape(14.dp))
+      .background(colors.primaryContainer)
+      .padding(start = 16.dp, end = 12.dp, top = 12.dp, bottom = 10.dp),
+    verticalAlignment = Alignment.CenterVertically,
+  ) {
+    Column(Modifier.weight(1f)) {
+      Text(
+        (disc.title ?: game.title).uppercase(),
+        style = MaterialTheme.typography.headlineSmall,
+        color = colors.onPrimaryContainer,
+        maxLines = 1,
+        overflow = TextOverflow.Ellipsis,
+      )
+      Text(
+        IdText(disc) + " · " + stringResource(
+          if (fps60) R.string.hero_60fps_on else R.string.hero_60fps_off
+        ),
+        style = MaterialTheme.typography.bodySmall,
+        color = colors.onPrimaryContainer.copy(alpha = 0.8f),
+        maxLines = 1,
+        overflow = TextOverflow.Ellipsis,
+      )
+      Row(verticalAlignment = Alignment.CenterVertically) {
+        TextButton(onClick = { onGameSettings(game, disc) }) {
+          Text(stringResource(R.string.hero_game_settings))
+        }
+        if (hasMods) {
+          TextButton(onClick = { onMods(game, disc) }) {
+            Text(stringResource(R.string.hero_patches))
+          }
+        }
+      }
+    }
+    Column(horizontalAlignment = Alignment.End) {
+      Button(onClick = { onLaunch(game) }) {
+        Icon(Icons.Filled.PlayArrow, contentDescription = null)
+        Text(stringResource(R.string.hero_play))
+      }
+      if (has60) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+          Text(
+            stringResource(R.string.hero_60fps),
+            style = MaterialTheme.typography.labelMedium,
+            color = colors.onPrimaryContainer,
+          )
+          Switch(
+            checked = fps60,
+            onCheckedChange = {
+              fps60 = it
+              ModChoices(context, key).setMod("60fps", it)
+            },
+            modifier = Modifier.padding(start = 6.dp),
+          )
+        }
+      }
+    }
+  }
+}
+
+/** The disc's title ID alone (the hero's second line). */
+private fun IdText(disc: DiscInfo): String = disc.titleIdText
 
 /**
  * The title ID and the region flags as one text (one layout, wrapping the

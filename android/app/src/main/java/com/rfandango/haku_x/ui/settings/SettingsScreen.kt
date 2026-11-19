@@ -98,6 +98,9 @@ fun SettingsScreen(
   var upscaleDialog by remember { mutableStateOf(false) }
   var stickSensitivity by remember { mutableFloatStateOf(prefs.stickSensitivity) }
   var stickDeadZone by remember { mutableFloatStateOf(prefs.stickDeadZone) }
+  var lookSensitivity by remember { mutableFloatStateOf(prefs.lookSensitivity) }
+  var swipeLook by remember { mutableStateOf(prefs.swipeLook) }
+  var floatingStick by remember { mutableStateOf(prefs.floatingStick) }
   var swipeMenu by remember { mutableStateOf(prefs.swipeMenuOpen) }
   var format by remember { mutableStateOf(prefs.screenFormat) }
   var p480 by remember { mutableStateOf(prefs.video480p) }
@@ -196,6 +199,15 @@ fun SettingsScreen(
           valueRange = 0.5f..1.6f,
         )
         Text(
+          stringResource(R.string.settings_look_sensitivity, lookSensitivity),
+          style = MaterialTheme.typography.bodyLarge,
+        )
+        Slider(
+          value = lookSensitivity,
+          onValueChange = { lookSensitivity = it; prefs.lookSensitivity = it },
+          valueRange = 0.3f..3.0f,
+        )
+        Text(
           stringResource(R.string.settings_stick_dead_zone, (stickDeadZone * 100).roundToInt()),
           style = MaterialTheme.typography.bodyLarge,
         )
@@ -209,6 +221,18 @@ fun SettingsScreen(
           style = MaterialTheme.typography.bodySmall,
         )
       }
+      SwitchItem(
+        title = stringResource(R.string.settings_swipe_look),
+        summary = stringResource(R.string.settings_swipe_look_desc),
+        checked = swipeLook,
+        onChange = { swipeLook = it; prefs.swipeLook = it },
+      )
+      SwitchItem(
+        title = stringResource(R.string.settings_floating_stick),
+        summary = stringResource(R.string.settings_floating_stick_desc),
+        checked = floatingStick,
+        onChange = { floatingStick = it; prefs.floatingStick = it },
+      )
       SwitchItem(
         title = stringResource(R.string.settings_swipe_menu),
         summary = stringResource(R.string.settings_swipe_menu_desc),
