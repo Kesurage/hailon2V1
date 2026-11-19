@@ -26,16 +26,17 @@ import java.net.URL
 import java.util.concurrent.atomic.AtomicBoolean
 
 /**
- * hakuX's releases on GitHub (rfandango/hakuX): the latest one, when it is newer than this app, with
- * its notes and its APK. A check runs once as the app's screens start, and on demand in the settings;
- * the APK is downloaded into the cache, checked to be this app signed as this app, and handed to the
- * system installer, which asks the user (UpdateInstallReceiver).
+ * hailon2V1's releases on GitHub (Kesurage/hailon2V1, this fork): the latest
+ * one, when it is newer than this app, with its notes and its APK. A check runs once as the app's
+ * screens start, and on demand in the settings; the APK is downloaded into the cache, checked to be
+ * this app signed as this app, and handed to the system installer, which asks the user
+ * (UpdateInstallReceiver).
  */
 object Updates {
   private const val TAG = "hakuX-update"
-  private const val REPO = "rfandango/hakuX"
-  /** The release builds' application id (a debug build's has ".debug"): what the APK must be. */
-  private const val RELEASE_PACKAGE = "com.rfandango.haku_x"
+  private const val REPO = "Kesurage/hailon2V1"
+  /** This fork ships the debug build (it installs beside the stock hakuX): what the APK must be. */
+  private const val RELEASE_PACKAGE = "com.rfandango.haku_x.debug"
   private const val TIMEOUT_MS = 15_000
 
   class Release(

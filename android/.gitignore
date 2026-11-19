@@ -20,3 +20,7 @@ Thumbs.db
 
 # Gradle temp artifacts (profile-out captures handled in root .gitignore)
 app/build.gradle.kts.tmp.*
+
+# The committed CI signing key (public by design; see app/build.gradle.kts)
+!signing/key.properties
+!signing/hailon2.keystore

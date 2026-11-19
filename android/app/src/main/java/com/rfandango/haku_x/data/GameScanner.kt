@@ -20,6 +20,16 @@ data class Game(
   val folder: Uri,
 )
 
+/** What the folders hold, for the empty library's hint (a scan that found nothing). */
+data class FolderProbe(
+  val files: Int,
+  val supported: Int,
+  /** The extensions (lowercase, no dot) of the files it did not take, most seen first. */
+  val others: List<String>,
+  /** A folder that could not be listed at all (its card out). */
+  val unlistable: Boolean,
+)
+
 /** The games in a folder (and its subfolders): a listing, no image is opened. */
 object GameScanner {
   private val gameExts = setOf("iso", "xiso", "cso", "cci")
@@ -121,6 +131,70 @@ object GameScanner {
     }
     val ext = lower.substringAfterLast('.', "")
     return ext.isNotEmpty() && ext in gameExts
+  }
+
+  /**
+   * A light look at the folders when a scan found nothing: how many files
+   * there are and of what kind, so the library can say what is wrong (a raw
+   * .bin/.cue, an extracted default.xbe folder or an archive is not
+   * playable; the gameExts are). No image is opened. Blocking.
+   */
+  fun probe(context: Context, folders: List<Uri>): FolderProbe {
+    var files = 0
+    var supported = 0
+    var unlistable = false
+    val exts = HashMap<String, Int>()
+    for (folder in folders) {
+      val rootId = try {
+        if (DocumentsContract.isDocumentUri(context, folder)) {
+          DocumentsContract.getDocumentId(folder)
+        } else {
+          DocumentsContract.getTreeDocumentId(folder)
+        }
+      } catch (_: IllegalArgumentException) {
+        continue
+      }
+      val stack = ArrayDeque<String>()
+      stack.add(rootId)
+      while (stack.isNotEmpty()) {
+        val id = stack.removeLast()
+        try {
+          val children = DocumentsContract.buildChildDocumentsUriUsingTree(folder, id)
+          val listed = context.contentResolver.query(children, CHILD_COLUMNS, null, null, null)
+          if (listed == null) {
+            unlistable = true
+            continue
+          }
+          listed.use { c ->
+            while (c.moveToNext()) {
+              val childId = c.getString(0) ?: continue
+              val name = c.getString(1) ?: continue
+              val mime = c.getString(2)
+              if (mime == Document.MIME_TYPE_DIR) {
+                // Converted dumps wait in their own folder, out of the library.
+                if (!name.equals(XisoConverter.ORIGINALS_FOLDER, ignoreCase = true)) {
+                  stack.add(childId)
+                }
+                continue
+              }
+              files++
+              if (!mime.isNullOrEmpty() && isSupported(name)) {
+                supported++
+              } else {
+                val ext = name.substringAfterLast('.', "").lowercase(Locale.ROOT)
+                if (ext.isNotEmpty()) {
+                  exts[ext] = (exts[ext] ?: 0) + 1
+                }
+              }
+            }
+          }
+        } catch (_: Exception) {
+          unlistable = true
+        }
+      }
+    }
+    val others = exts.entries.sortedByDescending { it.value }.map { it.key }.take(6)
+    return FolderProbe(files, supported, others, unlistable)
   }
 
   /** A game's title from its file's name (toTitle); brackets kept when asked. */

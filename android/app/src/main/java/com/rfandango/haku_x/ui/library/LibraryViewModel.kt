@@ -46,6 +46,8 @@ data class LibraryState(
   /** While loading: the discs not read before (0 while the folder is listed), and how many are read. */
   val toRead: Int = 0,
   val read: Int = 0,
+  /** The empty library's hint: what the folders hold (null: not probed, or games were found). */
+  val scanProbe: GameScanner.FolderProbe? = null,
   /** By title: the disc's own, else the file's name. */
   val games: List<Game> = emptyList(),
   val query: String = "",
@@ -183,7 +185,7 @@ class LibraryViewModel(app: Application) : AndroidViewModel(app) {
     scanJob?.cancel()
     scanJob = viewModelScope.launch {
       _state.update {
-        it.copy(loading = true, toRead = 0, read = 0, games = emptyList(), info = emptyMap(), icons = emptyMap())
+        it.copy(loading = true, toRead = 0, read = 0, games = emptyList(), info = emptyMap(), icons = emptyMap(), scanProbe = null)
       }
       val ready = withContext(Dispatchers.IO) { folders.filter { Storage.isFolderReady(app, it) } }
       if (ready.isEmpty()) {
@@ -194,6 +196,12 @@ class LibraryViewModel(app: Application) : AndroidViewModel(app) {
       val t0 = SystemClock.elapsedRealtime()
       val games = withContext(Dispatchers.IO) { GameScanner.scan(app, ready) }
       Log.i("hakuX-library", "scan: ${games.size} games in ${ready.size} folders, ${SystemClock.elapsedRealtime() - t0} ms")
+      // Nothing found: look once more at what the folders hold, for the hint.
+      val probe = if (games.isEmpty()) {
+        withContext(Dispatchers.IO) { GameScanner.probe(app, ready) }
+      } else {
+        null
+      }
       val info = withContext(Dispatchers.IO) {
         games.mapNotNull { g -> discInfo.cached(g)?.let { g.uri to it } }.toMap(HashMap())
       }
@@ -213,6 +221,7 @@ class LibraryViewModel(app: Application) : AndroidViewModel(app) {
           games = sorted(games.map { g -> info[g.uri]?.title?.let { g.copy(title = it) } ?: g }),
           info = info.toMap(),
           icons = icons,
+          scanProbe = probe,
         )
       }
     }

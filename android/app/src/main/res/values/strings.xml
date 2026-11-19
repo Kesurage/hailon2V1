@@ -78,6 +78,10 @@
   <string name="library_loading_games">Loading games</string>
   <string name="library_loading_discs">Reading discs: %1$d of %2$d</string>
   <string name="library_empty_games">No supported games found in this folder.</string>
+  <string name="library_empty_probe_nofiles">The folder is empty. Put a game image (.iso, .xiso, .cso or .cci) in it, or pick the folder your images are in.</string>
+  <string name="library_empty_probe_files">The folder has %1$d files, none of them playable. Playable formats: .iso, .xiso, .cso, .cci.</string>
+  <string name="library_empty_probe_others">Other files seen: %1$s. A raw .bin/.cue, an extracted folder with default.xbe, or an archive (.zip, .7z, .rar) is not playable: convert or extract it to ISO/XISO first.</string>
+  <string name="library_empty_probe_unlistable">A folder could not be read (its storage may be out).</string>
   <string name="library_convert_action">Convert</string>
   <string name="library_menu_settings">Game settings</string>
   <string name="library_menu_convert">Convert to XISO</string>

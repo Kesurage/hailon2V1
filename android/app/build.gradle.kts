@@ -7,7 +7,10 @@ plugins {
   id("org.jetbrains.kotlin.plugin.compose")
 }
 
-val keystorePropertiesFile = rootProject.file("key.properties")
+// The committed CI key (signing/): public by design, so every CI build is
+// signed the same and updates install over one another (a runner's throwaway
+// debug key changes with every build). Not for anything sensitive.
+val keystorePropertiesFile = rootProject.file("signing/key.properties")
 val keystoreProperties = Properties()
 val hasKeystoreProperties = keystorePropertiesFile.exists()
 
@@ -31,8 +34,8 @@ android {
     minSdk = 28
     targetSdk = 36
 
-    versionCode = 9
-    versionName = "1.3.0"
+    versionCode = 19
+    versionName = "1.3.1"
 
     ndk {
       abiFilters += listOf("arm64-v8a")
@@ -51,13 +54,22 @@ android {
         keyAlias = keystoreProperties.getProperty("keyAlias")
         keyPassword = keystoreProperties.getProperty("keyPassword")
       }
+      // The same committed key signs the debug build too, so this fork's
+      // builds (which ship as the debug one, beside the stock hakuX) update
+      // one another across CI runs.
+      getByName("debug") {
+        storeFile = file(keystoreProperties.getProperty("storeFile"))
+        storePassword = keystoreProperties.getProperty("storePassword")
+        keyAlias = keystoreProperties.getProperty("keyAlias")
+        keyPassword = keystoreProperties.getProperty("keyPassword")
+      }
     }
   }
 
   buildTypes {
     debug {
       applicationIdSuffix = ".debug"
-      resValue("string", "app_name", "hakuX Debug")
+      resValue("string", "app_name", "hailon2V1")
       ndk {
         debugSymbolLevel = "NONE"
       }

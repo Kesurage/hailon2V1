@@ -190,7 +190,21 @@ fun LibraryScreen(
           !state.folderReady -> Message(stringResource(R.string.library_no_folder)) {
             TextButton(onClick = onOpenSettings) { Text(stringResource(R.string.settings_games_folder_title)) }
           }
-          games.isEmpty() -> Message(stringResource(R.string.library_empty_games))
+          games.isEmpty() -> Message(stringResource(R.string.library_empty_games)) {
+            state.scanProbe?.let { p ->
+              if (p.files == 0) {
+                Hint(stringResource(R.string.library_empty_probe_nofiles))
+              } else {
+                Hint(stringResource(R.string.library_empty_probe_files, p.files))
+                if (p.others.isNotEmpty()) {
+                  Hint(stringResource(R.string.library_empty_probe_others, p.others.joinToString { ".$it" }))
+                }
+                if (p.unlistable) {
+                  Hint(stringResource(R.string.library_empty_probe_unlistable))
+                }
+              }
+            }
+          }
           else -> GameList(games, state.info, state.icons, onLaunch, onGameSettings, onLoadState, onMods, vm::askConvert)
         }
       }
@@ -669,4 +683,16 @@ private fun Message(text: String, action: @Composable () -> Unit = {}) {
       action()
     }
   }
+}
+
+/** A line of the empty library's hint, under the message (GameScanner.probe). */
+@Composable
+private fun Hint(text: String) {
+  Text(
+    text,
+    style = MaterialTheme.typography.bodySmall,
+    color = MaterialTheme.colorScheme.onSurfaceVariant,
+    textAlign = TextAlign.Center,
+    modifier = Modifier.padding(top = 8.dp).width(320.dp),
+  )
 }

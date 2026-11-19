@@ -1,24 +1,27 @@
-name: build
+name: launcher (legacy)
 
+# The original hailon2V1 launcher skeleton (v0.1.x) — a UI mock with no
+# engine. Kept for reference; it only builds when launcher/ changes. The real
+# app (hakuX engine + app) is built by engine.yml.
 on:
   push:
     branches: [ main ]
-    tags: [ "v*" ]
+    paths: [ "launcher/**" ]
   workflow_dispatch:
+
+concurrency:
+  group: launcher-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   apk:
     runs-on: ubuntu-latest
-    permissions:
-      contents: write
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: "17"
-      # ubuntu-latest ships the Android SDK preinstalled (ANDROID_HOME set, licenses
-      # accepted); AGP auto-installs any missing NDK/cmake, so no setup-android needed.
       - uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: "8.9"
@@ -26,10 +29,9 @@ jobs:
         env:
           ANDROID_HOME: /usr/local/lib/android/sdk
         run: gradle :app:assembleDebug --no-daemon --stacktrace
+        working-directory: launcher
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
         with:
-          name: hailon2V1-debug-apk
-          path: app/build/outputs/apk/debug/app-debug.apk
-      # Releases are cut from locally built, verified APKs (a tag-triggered job would
-      # otherwise attach a second copy under a different name); CI builds stay as artifacts.
+          name: hailon2V1-launcher-legacy-apk
+          path: launcher/app/build/outputs/apk/debug/app-debug.apk
