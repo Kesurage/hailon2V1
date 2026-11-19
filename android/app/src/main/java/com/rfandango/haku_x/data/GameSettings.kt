@@ -94,6 +94,10 @@ class RunSettings(private val app: AppPrefs, private val game: GameOverrides?) {
   val aspectRatio get() = text(GameSetting.ASPECT, app.aspectRatio)
   val fxaa get() = bool(GameSetting.FXAA, app.fxaa)
   val upscaleFilter get() = text(GameSetting.UPSCALE, app.upscaleFilter)
+  /** Frame generation 2x (the app's alone: it meets the panel's rate, whatever the game). */
+  val frameGeneration get() = app.frameGeneration
+  /** FSR 1's RCAS sharpening, in stops (the app's alone). */
+  val fsrSharpness get() = app.fsrSharpness
   val language get() = text(GameSetting.LANGUAGE, app.language)
   val screenFormat get() = text(GameSetting.SCREEN_FORMAT, app.screenFormat)
   val video480p get() = bool(GameSetting.VIDEO_480P, app.video480p)

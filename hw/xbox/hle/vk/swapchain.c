@@ -5,7 +5,9 @@
  *
  * Each refresh: a swapchain image (waiting for one paces the thread to the
  * panel: FIFO), the front frame, and one pass that letterboxes the frame
- * into the image, the rest black, through the display's gamma ramp. The
+ * into the image, the rest black, through the display's gamma ramp. Frame
+ * generation (hle_present_set_framegen) fills the refreshes the game leaves
+ * empty with the blend of the frames either side of them, at 2x. The
  * anti-aliasing on the way:
  *  - FXAA over each new frame at its own size, into an image of ours, once a
  *    frame however many refreshes show it;
@@ -46,8 +48,9 @@
 
 /* P_FSR_EASU renders into the FSR image (RGBA8, like FXAA's, its pipeline
  * built once); the others into the window's images (their pipelines rebuilt
- * when the swapchain's format changes). */
-enum { P_BILINEAR, P_AREA, P_SGSR, P_FSR_RCAS, P_FXAA, P_FSR_EASU, P_COUNT };
+ * when the swapchain's format changes). P_GEN renders the blend of two
+ * frames into the mid image (FXAA's). */
+enum { P_BILINEAR, P_AREA, P_SGSR, P_FSR_RCAS, P_FXAA, P_FSR_EASU, P_GEN, P_COUNT };
 
 typedef struct PsFrame {
     VkCommandPool pool;
@@ -93,18 +96,31 @@ static struct {
     HleDispFrame f;
     bool have, using;           /* f held; inside hle_disp_use_begin */
     uint64_t serial;            /* frames taken */
-    /* FXAA's */
+    /* frame generation 2x (hle_present_set_framegen): on, the frame before
+     * the front one is held one present longer for the blended in-between;
+     * the front frame itself still to show after its blend (gen_pending);
+     * the refreshes that showed nothing new (a game behind the display's
+     * rate); the frame whose picture — itself or its blend — was last shown */
+    bool framegen;
+    HleDispFrame fprev;
+    bool have_prev;
+    bool gen_pending;
+    unsigned idle_refreshes;
+    uint64_t drawn_serial;
+    /* FXAA's and a blend's image, the frame's size */
     VkImage fx_img;
     VkDeviceMemory fx_mem;
     VkImageView fx_view;
     uint32_t fx_w, fx_h;
     uint64_t fx_serial;         /* the frame it holds */
+    bool fx_blend;              /* ... as the blend with the one before */
     /* FSR 1's EASU image, the frame's place in the window at its size */
     VkImage fsr_img;
     VkDeviceMemory fsr_mem;
     VkImageView fsr_view;
     uint32_t fsr_w, fsr_h;
     uint64_t fsr_serial;        /* the frame it holds */
+    bool fsr_blend;             /* ... as the blend with the one before */
     /* the display's gamma ramp */
     uint8_t ramp[3][256];
     uint32_t ramp_gen;
@@ -130,12 +146,14 @@ static const char k_vs[] =
     "  gl_Position = vec4(pc.rot.x * p.x + pc.rot.y * p.y, pc.rot.z * p.x + pc.rot.w * p.y, 0.0, 1.0);\n"
     "}\n";
 /* every fragment shader's start: its inputs and the gamma ramp (768 bytes,
- * a channel's 256 after another's, as gamma.c's) */
+ * a channel's 256 after another's, as gamma.c's). u_prev (binding 2) is the
+ * blend's second input alone; the others never mention it. */
 static const char k_fs_head[] =
     "#version 450\n"
     "layout(push_constant) uniform P { vec4 rect; vec4 extra; vec4 rot; } pc;\n"
     "layout(set = 0, binding = 0) uniform sampler2D u_tex;\n"
     "layout(set = 0, binding = 1, std140) uniform G { uvec4 w[48]; } g;\n"
+    "layout(set = 0, binding = 2) uniform sampler2D u_prev;\n"
     "layout(location = 0) in vec2 v_uv;\n"
     "layout(location = 0) out vec4 o;\n"
     "uint lut(uint i) {\n"
@@ -315,6 +333,17 @@ static const char k_fs_sgsr[] =
     "  o = ramp(color.xyz);\n"
     "}\n";
 
+/* Frame generation's in-between (below, in hle_present_end): the last frame
+ * (u_prev) and this one (u_tex), half and half, into the mid image like
+ * FXAA's — no ramp, the pass that scales the picture to the window applies
+ * it. Without motion vectors that blend is the honest halfway picture: shown
+ * in the refresh the game left empty, it doubles the presented rate without
+ * touching the game's own frames or their input. */
+static const char k_fs_blend[] =
+    "void main() {\n"
+    "  o = vec4(mix(texture(u_prev, v_uv).rgb, texture(u_tex, v_uv).rgb, 0.5), 1.0);\n"
+    "}\n";
+
 /* AMD FidelityFX Super Resolution 1 (EASU, then RCAS below), from AMD's
  * FidelityFX-FSR ffx_fsr1.h and the sample's Vulkan GLSL pass (FSR_Pass.glsl),
  * v1.20210629:
@@ -482,7 +511,7 @@ static const char k_fs_fsr_easu[] =
 /* FSR 1's RCAS (AMD, MIT; the notice is above): sharpens EASU's image into
  * its place in the window, through the gamma ramp. pc.extra is
  * (1/w, 1/h, sharpness, 0), the sharpness FsrRcasCon's stops turned linear
- * (exp2(-stops); 0.2 here: a mild sharpen). */
+ * (exp2(-stops); present.c passes it, 0.87 stops the sample's default). */
 static const char k_fs_fsr_rcas[] =
     "void main() {\n"
     "  ivec2 sz = textureSize(u_tex, 0);\n"
@@ -580,11 +609,14 @@ static bool init(void)
         .addressModeU = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE,
         .addressModeV = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE,
         .addressModeW = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE, .maxLod = 0.0f };
-    VkDescriptorSetLayoutBinding b[2] = {
+    VkDescriptorSetLayoutBinding b[3] = {
         { 0, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, VK_SHADER_STAGE_FRAGMENT_BIT, NULL },
-        { 1, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1, VK_SHADER_STAGE_FRAGMENT_BIT, NULL } };
+        { 1, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1, VK_SHADER_STAGE_FRAGMENT_BIT, NULL },
+        /* the blend's second frame (frame generation); the other shaders
+         * leave it unmentioned */
+        { 2, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, VK_SHADER_STAGE_FRAGMENT_BIT, NULL } };
     VkDescriptorSetLayoutCreateInfo dci = {
-        .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO, .bindingCount = 2, .pBindings = b };
+        .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO, .bindingCount = 3, .pBindings = b };
     if (T.vkCreateSemaphore(g_hvk.dev, &tsi, NULL, &g_ps.tl) != VK_SUCCESS ||
         T.vkCreateSampler(g_hvk.dev, &sci, NULL, &g_ps.smp) != VK_SUCCESS ||
         T.vkCreateDescriptorSetLayout(g_hvk.dev, &dci, NULL, &g_ps.dsl) != VK_SUCCESS) {
@@ -594,7 +626,7 @@ static bool init(void)
     VkPipelineLayoutCreateInfo lci = {
         .sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO, .setLayoutCount = 1,
         .pSetLayouts = &g_ps.dsl, .pushConstantRangeCount = 1, .pPushConstantRanges = &pcr };
-    VkDescriptorPoolSize ps[2] = { { VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, PS_FRAMES * 2 },
+    VkDescriptorPoolSize ps[2] = { { VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, PS_FRAMES * 4 },
                                    { VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, PS_FRAMES * 2 } };
     VkDescriptorPoolCreateInfo pci = {
         .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO, .maxSets = PS_FRAMES * 2,
@@ -645,17 +677,19 @@ static bool init(void)
     }
     g_ps.vs = module(HLE_SHADER_VERTEX, k_vs, "");
     static const char *const body[P_COUNT] = {
-        k_fs_bilinear, k_fs_area, k_fs_sgsr, k_fs_fsr_rcas, k_fs_fxaa, k_fs_fsr_easu,
+        k_fs_bilinear, k_fs_area, k_fs_sgsr, k_fs_fsr_rcas, k_fs_fxaa, k_fs_fsr_easu, k_fs_blend,
     };
     for (unsigned i = 0; i < P_COUNT; i++) {
         g_ps.fs[i] = module(HLE_SHADER_FRAGMENT, k_fs_head, body[i]);
     }
     g_ps.pipe[P_FXAA] = pipeline(g_ps.fs[P_FXAA], VK_FORMAT_R8G8B8A8_UNORM);
     g_ps.pipe[P_FSR_EASU] = pipeline(g_ps.fs[P_FSR_EASU], VK_FORMAT_R8G8B8A8_UNORM);
-    hle_log("hakuX-hle-back", "present: ready (shaders: bilinear %d, averaging %d, SGSR %d, FXAA %d, FSR 1 %d)",
-            g_ps.fs[P_BILINEAR] != VK_NULL_HANDLE, g_ps.fs[P_AREA] != VK_NULL_HANDLE,
+    g_ps.pipe[P_GEN] = pipeline(g_ps.fs[P_GEN], VK_FORMAT_R8G8B8A8_UNORM);
+    hle_log("hakuX-hle-back", "present: ready (shaders: bilinear %d, averaging %d, SGSR %d, FXAA %d, FSR 1 %d, "
+            "blend %d)", g_ps.fs[P_BILINEAR] != VK_NULL_HANDLE, g_ps.fs[P_AREA] != VK_NULL_HANDLE,
             g_ps.fs[P_SGSR] != VK_NULL_HANDLE, g_ps.pipe[P_FXAA] != VK_NULL_HANDLE,
-            g_ps.pipe[P_FSR_EASU] != VK_NULL_HANDLE && g_ps.fs[P_FSR_RCAS] != VK_NULL_HANDLE);
+            g_ps.pipe[P_FSR_EASU] != VK_NULL_HANDLE && g_ps.fs[P_FSR_RCAS] != VK_NULL_HANDLE,
+            g_ps.pipe[P_GEN] != VK_NULL_HANDLE);
     return g_ps.fs[P_BILINEAR] != VK_NULL_HANDLE;
 }
 
@@ -868,12 +902,22 @@ bool hle_present_unchanged(struct ANativeWindow *win, uint64_t key)
         (uint32_t)ANativeWindow_getHeight(win) != g_ps.wsize.height || hle_disp_gamma_seq() != g_ps.ramp_gen) {
         return false;
     }
+    /* frame generation: the frame itself is still to show after its blend */
+    if (g_ps.framegen && g_ps.gen_pending) {
+        return false;
+    }
     uint32_t gen, swap_id;
     const bool front = hle_disp_front(&gen, &swap_id);
     if (front != g_ps.have) {
         return false;
     }
-    return !front || (gen == g_ps.f.gen && swap_id == g_ps.f.swap_id);
+    if (front && (gen != g_ps.f.gen || swap_id != g_ps.f.swap_id)) {
+        return false;
+    }
+    /* the panel keeps its image: a refresh the game left empty — where it
+     * runs behind the display's rate (frame generation's blends) */
+    g_ps.idle_refreshes++;
+    return true;
 }
 
 bool hle_present_begin(struct ANativeWindow *win, uint32_t *w, uint32_t *h)
@@ -956,13 +1000,29 @@ bool hle_present_frame(uint32_t *w, uint32_t *h)
     g_ps.using = true;
     if (g_ps.have && g_ps.f.gen != hle_disp_gen()) {
         g_ps.have = false;              /* the display was made again: its image is gone */
+        g_ps.have_prev = false;         /* its slots with it (held or not, they are gone) */
     }
     HleDispFrame f;
     if (hle_disp_acquire(&f) && (!g_ps.have || f.slot != g_ps.f.slot)) {
-        /* a new frame: the one shown goes back (its reads are submitted, and
-         * the render thread's next write of it comes after them) */
-        if (g_ps.have) {
-            hle_disp_release(g_ps.f.slot);
+        /* a new frame. Frame generation holds the one before it one present
+         * longer (the blend's other half), and only while the game runs
+         * behind the display — at its rate the second slot would be the
+         * render thread's (display.h), and the blend never shows anyway. */
+        const bool hold = g_ps.framegen && g_ps.have && g_ps.idle_refreshes > 0;
+        if (hold) {
+            if (g_ps.have_prev) {
+                hle_disp_release(g_ps.fprev.slot);
+            }
+            g_ps.fprev = g_ps.f;
+            g_ps.have_prev = true;
+        } else {
+            if (g_ps.have) {
+                hle_disp_release(g_ps.f.slot);
+            }
+            if (g_ps.have_prev) {       /* frame generation went off: its hold goes back */
+                hle_disp_release(g_ps.fprev.slot);
+                g_ps.have_prev = false;
+            }
         }
         g_ps.f = f;
         g_ps.have = true;
@@ -975,7 +1035,21 @@ bool hle_present_frame(uint32_t *w, uint32_t *h)
     return g_ps.have;
 }
 
-/* The FXAA image at the frame's size. */
+void hle_present_set_framegen(bool on)
+{
+    g_ps.framegen = on;
+    if (!on && g_ps.have_prev) {
+        if (!g_ps.using) {
+            hle_disp_release(g_ps.fprev.slot);
+        }
+        g_ps.have_prev = false;
+    }
+    g_ps.gen_pending = false;
+}
+
+/* The mid image at the frame's size: FXAA's filtered frame, or frame
+ * generation's blend of two frames (each writes it with its own bookkeeping,
+ * fx_serial/fx_blend, and never both in one present). */
 static bool fxaa_target(uint32_t w, uint32_t h)
 {
     if (g_ps.fx_img && g_ps.fx_w == w && g_ps.fx_h == h) {
@@ -1010,15 +1084,17 @@ static bool fxaa_target(uint32_t w, uint32_t h)
     if (mt < 0 || T.vkAllocateMemory(g_hvk.dev, &mai, NULL, &g_ps.fx_mem) != VK_SUCCESS ||
         T.vkBindImageMemory(g_hvk.dev, g_ps.fx_img, g_ps.fx_mem, 0) != VK_SUCCESS ||
         T.vkCreateImageView(g_hvk.dev, &vci, NULL, &g_ps.fx_view) != VK_SUCCESS) {
-        hle_log("hakuX-hle-back", "present: no %ux%u FXAA image: FXAA off", w, h);
+        hle_log("hakuX-hle-back", "present: no %ux%u mid image: FXAA and frame generation off", w, h);
         T.vkDestroyImage(g_hvk.dev, g_ps.fx_img, NULL);
         g_ps.fx_img = VK_NULL_HANDLE;
         g_ps.pipe[P_FXAA] = VK_NULL_HANDLE;
+        g_ps.pipe[P_GEN] = VK_NULL_HANDLE;
         return false;
     }
     g_ps.fx_w = w;
     g_ps.fx_h = h;
     g_ps.fx_serial = 0;
+    g_ps.fx_blend = false;
     return true;
 }
 
@@ -1085,18 +1161,23 @@ static void barrier(VkCommandBuffer cb, VkImage img, VkImageLayout from, VkImage
     T.vkCmdPipelineBarrier2(cb, &di);
 }
 
-/* A quad of pipeline p over rect (clip space) into the rendering open. */
+/* A quad of pipeline p over rect (clip space) into the rendering open; src2
+ * (the blend's other frame) besides, or VK_NULL_HANDLE for none. */
 static void quad(VkCommandBuffer cb, PsFrame *f, unsigned set, VkPipeline p, VkImageView src,
-                 const float pc[12], uint32_t w, uint32_t h)
+                 VkImageView src2, const float pc[12], uint32_t w, uint32_t h)
 {
     VkDescriptorImageInfo ii = { g_ps.smp, src, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL };
-    VkDescriptorBufferInfo bi = { g_ps.ubo, (VkDeviceSize)(f - g_ps.fr) * PS_RAMP, 768 };
-    VkWriteDescriptorSet wr[2] = {
+    VkDescriptorImageInfo i2 = { g_ps.smp, src2, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL };
+    VkWriteDescriptorSet wr[3] = {
         { .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET, .dstSet = f->set[set], .dstBinding = 0,
           .descriptorCount = 1, .descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, .pImageInfo = &ii },
         { .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET, .dstSet = f->set[set], .dstBinding = 1,
-          .descriptorCount = 1, .descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, .pBufferInfo = &bi } };
-    T.vkUpdateDescriptorSets(g_hvk.dev, 2, wr, 0, NULL);
+          .descriptorCount = 1, .descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER },
+        { .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET, .dstSet = f->set[set], .dstBinding = 2,
+          .descriptorCount = 1, .descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, .pImageInfo = &i2 } };
+    VkDescriptorBufferInfo bi = { g_ps.ubo, (VkDeviceSize)(f - g_ps.fr) * PS_RAMP, 768 };
+    wr[1].pBufferInfo = &bi;
+    T.vkUpdateDescriptorSets(g_hvk.dev, src2 ? 3 : 2, wr, 0, NULL);
     VkViewport vp = { 0, 0, (float)w, (float)h, 0.0f, 1.0f };
     VkRect2D sc = { { 0, 0 }, { w, h } };
     T.vkCmdBindPipeline(cb, VK_PIPELINE_BIND_POINT_GRAPHICS, p);
@@ -1139,7 +1220,8 @@ static void log_path(unsigned p, bool fxaa, uint32_t vw, uint32_t vh)
             : p == P_FSR_RCAS ? "scaled up by FSR 1" : "bilinear");
 }
 
-void hle_present_end(float sx, float sy, bool fxaa, int upscale, bool average, uint64_t key)
+void hle_present_end(float sx, float sy, bool fxaa, int upscale, bool average, float sharpness,
+                     uint64_t key)
 {
     g_ps.shown = false;
     PsFrame *f = &g_ps.fr[g_ps.cur];
@@ -1167,6 +1249,43 @@ void hle_present_end(float sx, float sy, bool fxaa, int upscale, bool average, u
     T.vkBeginCommandBuffer(cb, &bi);
     VkImageView src = g_ps.have ? g_ps.f.view : VK_NULL_HANDLE;
     bool fxaa_done = false;
+    /*
+     * Frame generation 2x. While the game runs behind the display (it left
+     * a refresh empty: idle_refreshes), each new frame is shown first as the
+     * blend of it and the one before — the picture halfway between, one
+     * refresh early — and then as itself at the next refresh (gen_pending),
+     * which hle_present_unchanged sends around. A game that keeps up with
+     * the display never blends: every refresh has a new frame, and this is
+     * all exactly as before.
+     */
+    const bool newf = g_ps.serial != g_ps.drawn_serial;
+    bool blend = false;
+    if (g_ps.framegen && g_ps.gen_pending) {
+        g_ps.gen_pending = false;      /* the frame itself, after its blend */
+    } else if (g_ps.framegen && newf && g_ps.idle_refreshes > 0 && g_ps.have && g_ps.have_prev &&
+               g_ps.f.w == g_ps.fprev.w && g_ps.f.h == g_ps.fprev.h && g_ps.pipe[P_GEN] &&
+               fxaa_target(g_ps.f.w, g_ps.f.h)) {
+        barrier(cb, g_ps.fx_img, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
+                VK_PIPELINE_STAGE_2_FRAGMENT_SHADER_BIT, 0,
+                VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT, VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT);
+        rendering(cb, g_ps.fx_view, g_ps.f.w, g_ps.f.h, false);
+        static const float whole[12] = { -1.0f, -1.0f, 1.0f, 1.0f, 0, 0, 0, 0, 1.0f, 0, 0, 1.0f };
+        quad(cb, f, 1, g_ps.pipe[P_GEN], g_ps.f.view, g_ps.fprev.view, whole, g_ps.f.w, g_ps.f.h);
+        T.vkCmdEndRendering(cb);
+        barrier(cb, g_ps.fx_img, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
+                VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT,
+                VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT, VK_PIPELINE_STAGE_2_FRAGMENT_SHADER_BIT,
+                VK_ACCESS_2_SHADER_SAMPLED_READ_BIT);
+        g_ps.fx_serial = g_ps.serial;   /* the mid image holds the blend now */
+        g_ps.fx_blend = true;
+        src = g_ps.fx_view;
+        blend = true;
+        g_ps.gen_pending = true;
+    }
+    if (newf || blend) {
+        g_ps.drawn_serial = g_ps.serial;
+    }
+    g_ps.idle_refreshes = 0;
     /* the frame's pixels per window pixel: over 1 (either axis) averaged
      * down, under 1 scaled up as chosen. FSR's EASU takes the source and
      * the destination sizes per axis (easuCon), so it upscales a frame
@@ -1197,20 +1316,21 @@ void hle_present_end(float sx, float sy, bool fxaa, int upscale, bool average, u
      * presented). A barrier of our own drained the GPU at every refresh; a
      * wait on the render timeline at the frame's value sent the submit down
      * a slow path on Qualcomm's driver (Halo 2 at 30 fps, Adreno 830). */
-    if (g_ps.have && fxaa && !fsr && g_ps.pipe[P_FXAA] && fxaa_target(g_ps.f.w, g_ps.f.h)) {
-        if (g_ps.fx_serial != g_ps.serial) {
+    if (!blend && g_ps.have && fxaa && !fsr && g_ps.pipe[P_FXAA] && fxaa_target(g_ps.f.w, g_ps.f.h)) {
+        if (g_ps.fx_serial != g_ps.serial || g_ps.fx_blend) {
             barrier(cb, g_ps.fx_img, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
                     VK_PIPELINE_STAGE_2_FRAGMENT_SHADER_BIT, 0,
                     VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT, VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT);
             rendering(cb, g_ps.fx_view, g_ps.f.w, g_ps.f.h, false);
             static const float whole[12] = { -1.0f, -1.0f, 1.0f, 1.0f, 0, 0, 0, 0, 1.0f, 0, 0, 1.0f };
-            quad(cb, f, 1, g_ps.pipe[P_FXAA], g_ps.f.view, whole, g_ps.f.w, g_ps.f.h);
+            quad(cb, f, 1, g_ps.pipe[P_FXAA], g_ps.f.view, VK_NULL_HANDLE, whole, g_ps.f.w, g_ps.f.h);
             T.vkCmdEndRendering(cb);
             barrier(cb, g_ps.fx_img, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
                     VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT,
                     VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT, VK_PIPELINE_STAGE_2_FRAGMENT_SHADER_BIT,
                     VK_ACCESS_2_SHADER_SAMPLED_READ_BIT);
             g_ps.fx_serial = g_ps.serial;
+            g_ps.fx_blend = false;
         }
         src = g_ps.fx_view;
         fxaa_done = true;
@@ -1218,8 +1338,9 @@ void hle_present_end(float sx, float sy, bool fxaa, int upscale, bool average, u
     /* FSR 1: EASU renders the frame (FXAA is left out while it runs — RCAS
      * sharpens) into the image of its place in the window; RCAS below then
      * draws that into the window. Skipped when the image already holds this
-     * frame (a refresh without a new one). */
-    if (fsr && g_ps.fsr_serial != g_ps.serial) {
+     * picture (a refresh without a new one); the blend counts as its own
+     * picture — after one, the frame itself renders again. */
+    if (fsr && (g_ps.fsr_serial != g_ps.serial || g_ps.fsr_blend != blend)) {
         barrier(cb, g_ps.fsr_img, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
                 VK_PIPELINE_STAGE_2_FRAGMENT_SHADER_BIT, 0,
                 VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT, VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT);
@@ -1227,13 +1348,14 @@ void hle_present_end(float sx, float sy, bool fxaa, int upscale, bool average, u
         const float pc[12] = { -1.0f, -1.0f, 1.0f, 1.0f,
                                (float)g_ps.f.w, (float)g_ps.f.h, (float)g_ps.fsr_w, (float)g_ps.fsr_h,
                                1.0f, 0.0f, 0.0f, 1.0f };
-        quad(cb, f, 1, g_ps.pipe[P_FSR_EASU], src, pc, g_ps.fsr_w, g_ps.fsr_h);
+        quad(cb, f, 1, g_ps.pipe[P_FSR_EASU], src, VK_NULL_HANDLE, pc, g_ps.fsr_w, g_ps.fsr_h);
         T.vkCmdEndRendering(cb);
         barrier(cb, g_ps.fsr_img, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
                 VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT,
                 VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT, VK_PIPELINE_STAGE_2_FRAGMENT_SHADER_BIT,
                 VK_ACCESS_2_SHADER_SAMPLED_READ_BIT);
         g_ps.fsr_serial = g_ps.serial;
+        g_ps.fsr_blend = blend;
     }
     if (fsr) {
         src = g_ps.fsr_view;
@@ -1254,7 +1376,7 @@ void hle_present_end(float sx, float sy, bool fxaa, int upscale, bool average, u
             p = P_FSR_RCAS;
             pc[4] = 1.0f / (float)g_ps.fsr_w;
             pc[5] = 1.0f / (float)g_ps.fsr_h;
-            pc[6] = exp2f(-0.87f);  /* FsrRcasCon's sharpness, 0.87 stops — AMD's sample's default */
+            pc[6] = exp2f(-sharpness);  /* FsrRcasCon's, the stops the caller chose */
         } else if ((rx < 0.99f || ry < 0.99f) && upscale == HLE_UPSCALE_SGSR && g_ps.pipe[P_SGSR]) {
             p = P_SGSR;
             pc[4] = 1.0f / (float)g_ps.f.w;
@@ -1262,7 +1384,7 @@ void hle_present_end(float sx, float sy, bool fxaa, int upscale, bool average, u
             pc[6] = (float)g_ps.f.w;
             pc[7] = (float)g_ps.f.h;
         }
-        quad(cb, f, 0, g_ps.pipe[p], src, pc, iw, ih);
+        quad(cb, f, 0, g_ps.pipe[p], src, VK_NULL_HANDLE, pc, iw, ih);
         log_path(p, fxaa_done, (uint32_t)(vw + 0.5f), (uint32_t)(vh + 0.5f));
     }
     T.vkCmdEndRendering(cb);

@@ -33,6 +33,13 @@ void nc_present_set_fxaa(bool on);
  * (a larger one is always averaged down). */
 enum { NC_UPSCALE_BILINEAR, NC_UPSCALE_FSR, NC_UPSCALE_SGSR };   /* swapchain.h HLE_UPSCALE_*'s */
 void nc_present_set_upscale(int mode);
+/* Frame generation 2x: the refreshes a game leaves empty (it runs behind
+ * the display's rate) show the blend of the frames either side of them.
+ * The game's own frames, and their input, are untouched. */
+void nc_present_set_framegen(bool on);
+/* FSR 1's RCAS sharpening, in FsrRcasCon's stops (0 none, 0.87 the sample's
+ * default, 2 the most); other upscalers don't sharpen. */
+void nc_present_set_sharpness(float stops);
 /* Frames the title presented per second over the last half second, their
  * average interval, and the last one's (ms). */
 void nc_present_stats(float *fps, float *avg_ms, float *last_ms);

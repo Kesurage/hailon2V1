@@ -1,5 +1,15 @@
 # Changelog
 
+## v0002D
+
+Frame generation 2x, the menu out of the thumbs' way, and the aim that was too slow.
+
+- **Frame generation 2x** (Settings → Graphics, on by default): while the game runs below the screen's rate, every refresh it leaves empty shows the blend of the frames either side of it — the picture halfway between, one refresh early — and the frame itself follows in the gap. A 30 fps game on a 90 Hz panel shows 90 pictures a second, half of them the in-betweens: motion looks twice as smooth. The game's own frames, and their input, are untouched (this is the DOA2 120 fps mod's blend, at the presenter, for every game). A game that keeps up with the display never blends and nothing changes for it.
+- **The FSR update**: FSR 1's sharpening (RCAS) is a setting of its own now — Soft, Normal (AMD's default), Strong (Settings → Graphics → FSR sharpening) — and FSR runs under frame generation too: the blended in-between is upscaled by EASU and sharpened by RCAS like any frame.
+- **The menu stays out of the thumbs' way**: a swipe up from the bottom opened it, and a forward walk with the left stick read as one — mid-fight, every time. The swipe gestures are off by default (Settings has them still), and where they may start is outside the thumbs' zones alone. In their place, the **options button**: a small button at the top middle, one tap and the menu opens.
+- **The aim was too slow** — Halo 2's turn speed is progressive, and a plain dead-zone lift left a medium drag at a deflection the game barely turns at. The look's response now bends (its square root): a medium drag turns as a good push of the stick, a flick is still the full rim, rest is still rest. With the default sensitivity up to 1.2× and the full-tilt drag down to 115 dp, a medium swipe aims like it means it — and not too fast either; the slider is still there in Settings.
+- **Moving and aiming no longer cost frames**: the move stick's knob was redrawn — its display list recorded again, its gradients built anew — at every touch sample, at the panel's whole rate; on this phone's Mali driver the window's frames take turns with the game's on the GPU, so following the thumb cost the game frames. The knob now moves in fine steps (a couple of pixels at its size — the input itself stays exact), so it re-records only as it crosses one, and the overlays redraw at most 45 times a second whatever the GPU is doing (the busy-wait gate already did this on Turnip; now it holds everywhere).
+
 ## v0002C
 
 Free look, PUBG's way: nothing drawn, no fps cost.

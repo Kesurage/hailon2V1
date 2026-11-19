@@ -37,6 +37,7 @@ import kotlin.math.hypot
 import kotlin.math.max
 import kotlin.math.min
 import kotlin.math.roundToInt
+import kotlin.math.sqrt
 
 /**
  * The on-screen controller, drawn like the original Xbox controller, each
@@ -147,13 +148,17 @@ class OnScreenController @JvmOverloads constructor(
 
   private val touchSlop = ViewConfiguration.get(context).scaledTouchSlop.toFloat()
   /* A drag on the right of the screen is the camera (swipe look): the menu
-   * gestures take their swipe from the left and the middle only, or a fast
-   * aim would open the menu mid-shot. */
+   * gestures take their swipe from the top and the middle strip only, over
+   * no control — never from where the thumbs play (the left stick's half,
+   * the look's), or a walk forward would open the menu mid-fight. Off by
+   * default since 0002D: the options button opens it. */
   private fun inLookZone(x: Float) = prefs.swipeLook && x >= width * 0.42f
+  private fun inPlayZone(x: Float, y: Float) =
+    (prefs.swipeLook && x >= width * 0.42f) || (prefs.floatingStick && x < width * 0.42f && y > height * 0.28f)
   private val swipeUp = SwipeUpGestureRecognizer(
     minDistancePx = { max(height * 0.14f, touchSlop * 8f) },
     touchSlopPx = { touchSlop },
-    canStartAt = { x, y -> y >= height * 0.35f && hit(x, y) == null && !inLookZone(x) },
+    canStartAt = { x, y -> y >= height * 0.35f && hit(x, y) == null && !inPlayZone(x, y) },
     onTriggered = {
       releaseAll()
       onMenuButtonTapped?.invoke()
@@ -166,7 +171,7 @@ class OnScreenController @JvmOverloads constructor(
     down = true,
     minDistancePx = { max(height * 0.14f, touchSlop * 8f) },
     touchSlopPx = { touchSlop },
-    canStartAt = { x, y -> y <= height * 0.18f && hit(x, y) == null && !inLookZone(x) },
+    canStartAt = { x, y -> y <= height * 0.18f && hit(x, y) == null && !inPlayZone(x, y) },
     onTriggered = {
       releaseAll()
       onMenuButtonTapped?.invoke()
@@ -286,7 +291,8 @@ class OnScreenController @JvmOverloads constructor(
   private fun look(s: ControlSpec): Look = when (s.id.kind) {
     ControlKind.STICK -> {
       val i = stickIndex(s.id)
-      Look(s.cx, s.cy, s.radius, stickPointer[i] != -1 || (i == 1 && lookPointer != -1), stickPos[i].x, stickPos[i].y, 0)
+      Look(s.cx, s.cy, s.radius, stickPointer[i] != -1 || (i == 1 && lookPointer != -1),
+           qStick(stickPos[i].x), qStick(stickPos[i].y), 0)
     }
     ControlKind.DPAD -> Look(s.cx, s.cy, s.radius, dpadBits != 0, 0f, 0f, dpadBits)
     ControlKind.MENU -> Look(s.cx, s.cy, s.radius, menuPressed, 0f, 0f, 0)
@@ -321,11 +327,12 @@ class OnScreenController @JvmOverloads constructor(
       val spec = layout?.get(if (i == 0) ControlId.LEFT_STICK else ControlId.RIGHT_STICK)
       h = 31 * h + if (stickPointer[i] != -1) 1 else 0
       if (i == 0 || (spec?.let { !off(it) } == true)) {
-        /* the knob's place — the right stick's only when it is drawn: the
-         * swipe look draws nothing at all (its rate lives in the pump, off
-         * the screen), so looking redraws not one pixel */
-        h = 31 * h + stickPos[i].x.toRawBits()
-        h = 31 * h + stickPos[i].y.toRawBits()
+        /* the knob's drawn place, quantized — the input itself stays exact:
+         * a slow drag redraws only when the knob crossed a step, and the
+         * display list (its gradients with it) is recorded again then, not
+         * at every touch sample */
+        h = 31 * h + qStick(stickPos[i].x).toRawBits()
+        h = 31 * h + qStick(stickPos[i].y).toRawBits()
       }
       spec?.let {
         h = 31 * h + it.cx.toRawBits() /* a stick floats to where its touch landed */
@@ -339,13 +346,19 @@ class OnScreenController @JvmOverloads constructor(
     when (s.id.kind) {
       ControlKind.STICK -> {
         val i = stickIndex(s.id)
-        painter.draw(canvas, s, stickPointer[i] != -1, stickPos[i].x, stickPos[i].y)
+        painter.draw(canvas, s, stickPointer[i] != -1, qStick(stickPos[i].x), qStick(stickPos[i].y))
       }
       ControlKind.DPAD -> painter.draw(canvas, s, dpadBits != 0, dpad = dpadBits)
       ControlKind.MENU -> painter.draw(canvas, s, menuPressed)
       else -> painter.draw(canvas, s, s.id in held)
     }
   }
+
+  /* The knob's drawn deflection, in steps of a KNOB_STEPS of the stick's
+   * travel (a couple of pixels at its size): what drawing sees, so a knob
+   * following the thumb re-records its display list only as it crosses a
+   * step. The input is exact; this is what the eye gets. */
+  private fun qStick(v: Float): Float = (v * KNOB_STEPS).roundToInt() / KNOB_STEPS.toFloat()
 
   private fun drawEditBackdrop(canvas: Canvas) {
     canvas.drawColor(Color.argb(110, 0, 0, 0))
@@ -723,11 +736,16 @@ class OnScreenController @JvmOverloads constructor(
    * The game's own stick dead zone: below it a stick does nothing at all —
    * Halo's is ~0.28 of its range, and a deflection under it is simply
    * eaten. Every deflection we mean at all is lifted over it on its way
-   * out (lift): a touch that moves goes as 0.28 at the least, so a
-   * micro-swipe aims instead of dying in the dead zone, and the rest of
-   * the range rides up with it — the same full tilt at the rim.
+   * out: a touch that moves goes as 0.28 at the least, so a micro-swipe
+   * aims instead of dying in the dead zone, and the rest of the range rides
+   * up with it — the same full tilt at the rim. The look's lift bends
+   * besides (its square root): Halo's turn speed is progressive — a plain
+   * lift left a medium drag at a deflection the game barely turns at, the
+   * "low sensitivity" feel — so the look's half of the range carries more
+   * of the drag, the move stick's stays linear (a walk answers as pushed).
    */
   private fun emitStick(i: Int, x: Float, y: Float) {
+    val lift: (Float) -> Float = if (i == 1) ::liftLook else ::lift
     listener?.onStickMoved(if (i == 0) Stick.LEFT else Stick.RIGHT, lift(x), lift(y))
   }
 
@@ -736,6 +754,15 @@ class OnScreenController @JvmOverloads constructor(
     val a = abs(v)
     if (a < 0.02f) return 0f
     val s = GAME_DEADZONE + (1f - GAME_DEADZONE) * min(a, 1f)
+    return if (v < 0f) -s else s
+  }
+
+  /** The look's lift: its middle squared — a medium drag turns as a good
+   * push of the stick, a flick is still the full rim, rest still rest. */
+  private fun liftLook(v: Float): Float {
+    val a = abs(v)
+    if (a < 0.02f) return 0f
+    val s = GAME_DEADZONE + (1f - GAME_DEADZONE) * sqrt(min(a, 1f))
     return if (v < 0f) -s else s
   }
 
@@ -1173,14 +1200,17 @@ class OnScreenController @JvmOverloads constructor(
      * it a stick does nothing at all — every deflection is lifted over it
      * on its way out (lift). */
     const val GAME_DEADZONE = 0.28f
-    /** The dp of drag that, held within the ease's window, is a full-tilt turn. */
-    const val LOOK_DRAG_DP = 140f
+    /** The dp of drag that, held within the ease's window, is a full-tilt
+     * turn (0002C had 140: a medium drag left the camera crawling). */
+    const val LOOK_DRAG_DP = 115f
     /** The turning rate's ease when the finger rests, in seconds (any refresh rate). */
     const val LOOK_TAU_S = 0.07f
     /** A finger still this long stops the camera at once (ms) — long enough
      * that a digitizer batching its samples (~every 80 ms on some panels)
      * is not read as a stop between batches. */
     const val LOOK_IDLE_MS = 80L
+    /** The drawn knob's steps over the stick's travel (qStick). */
+    const val KNOB_STEPS = 16
     val DPAD_BUTTONS = listOf(
       ControlPainter.DPAD_UP to Button.DPAD_UP,
       ControlPainter.DPAD_DOWN to Button.DPAD_DOWN,

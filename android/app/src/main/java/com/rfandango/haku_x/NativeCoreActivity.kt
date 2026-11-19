@@ -242,9 +242,13 @@ class NativeCoreActivity : SDLActivity(), InputManager.InputDeviceListener {
     /* The picture's shape: auto (the game's), 4:3, 16:9 or stretch. */
     args += "aspect=${settings.aspectRatio}"
     /* Anti-aliasing: FXAA over each frame, and how a picture smaller than
-     * the screen is scaled up (a larger one is averaged down). */
+     * the screen is scaled up (a larger one is averaged down). Frame
+     * generation 2x fills the refreshes a game leaves empty with the blend
+     * of the frames either side; FSR's RCAS sharpens as chosen. */
     args += "fxaa=${if (settings.fxaa) 1 else 0}"
     args += "upscale=${settings.upscaleFilter}"
+    args += "framegen=${if (settings.frameGeneration) 1 else 0}"
+    args += "sharpness=${settings.fsrSharpness}"
     /* The console's video settings (widescreen, 480p/720p/1080i, the cable)
      * and its language. */
     args += "video=%x".format(settings.videoFlags())
@@ -1183,6 +1187,8 @@ class NativeCoreActivity : SDLActivity(), InputManager.InputDeviceListener {
     const val PREF_SWIPE_LOOK = "swipe_look"
     const val PREF_FLOATING_STICK = "floating_stick"
     const val PREF_SWIPE_MENU = "swipe_menu_open"
+    const val PREF_FRAMEGEN = "frame_generation"
+    const val PREF_FSR_SHARPNESS = "fsr_sharpness"
 
     /** The editor's Photo action's request code (onActivityResult's). */
     private const val REQUEST_ICON = 41

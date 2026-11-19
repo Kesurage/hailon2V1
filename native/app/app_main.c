@@ -10,7 +10,11 @@
  *            undistorted), "fxaa=0|1" FXAA over each frame and
  *            "upscale=bilinear|fsr|sgsr" how a frame smaller than its place
  *            on screen is scaled up (fsr: AMD FidelityFX Super Resolution 1,
- *            EASU then RCAS); "padinput=sdl" the legacy input (the first
+ *            EASU then RCAS), "framegen=0|1" frame generation 2x (the
+ *            refreshes a game leaves empty show the blend of the frames
+ *            either side of them), "sharpness=<stops>" FSR 1's RCAS
+ *            sharpening (0 none, 0.87 the default, 2 the most);
+ *            "padinput=sdl" the legacy input (the first
  *            SDL gamepad as player 1); "vkdriver=" the custom Vulkan driver
  *            (vkdriver.c)
  *
@@ -579,6 +583,19 @@ EXPORT int SDL_main(int argc, char *argv[])
             nc_present_set_upscale(!strcmp(u, "sgsr") ? NC_UPSCALE_SGSR
                                     : !strcmp(u, "fsr") ? NC_UPSCALE_FSR
                                                         : NC_UPSCALE_BILINEAR);
+        }
+        if (!strncmp(argv[i], "framegen=", 9)) {
+            nc_present_set_framegen(atoi(argv[i] + 9) != 0);
+        }
+        if (!strncmp(argv[i], "sharpness=", 10)) {
+            float s = (float)atof(argv[i] + 10);
+            if (s < 0.0f) {
+                s = 0.0f;
+            }
+            if (s > 2.0f) {
+                s = 2.0f;
+            }
+            nc_present_set_sharpness(s);
         }
         /* vkdriver=<driver dir>|<library>|<hook library dir>: the custom
          * Vulkan driver chosen in the settings (Turnip), via adrenotools. */

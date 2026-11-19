@@ -5,7 +5,8 @@
  * the HLE GPU's presenter (hw/xbox/hle/vk/swapchain.h), which draws the
  * front frame into it through a Vulkan swapchain: here, the frame's place in
  * the window (letterboxed to the chosen shape) and the anti-aliasing chosen
- * (nc_present_set_fxaa, nc_present_set_upscale).
+ * (nc_present_set_fxaa, nc_present_set_upscale, nc_present_set_framegen,
+ * nc_present_set_sharpness).
  */
 #include "native/app/app.h"
 #include "native/dev/dev.h"
@@ -21,6 +22,8 @@ static int g_aspect = NC_ASPECT_AUTO;
 static bool g_widescreen;
 static bool g_fxaa;
 static int g_upscale = NC_UPSCALE_BILINEAR;
+static bool g_framegen;               /* frame generation 2x */
+static float g_sharpness = 0.87f;      /* FSR 1's RCAS, in stops */
 static bool g_shown;
 
 /* Frame rate from the HLE GPU's presented frames. */
@@ -38,8 +41,10 @@ static struct {
 bool nc_present_init(void)
 {
     hle_disp_gamma_by_consumer(true); /* before the core starts: frames come without it */
-    nc_log("hakuX-app", "present: Vulkan; FXAA %s, upscaling %s", g_fxaa ? "on" : "off",
-           g_upscale == NC_UPSCALE_SGSR ? "SGSR" : g_upscale == NC_UPSCALE_FSR ? "FSR 1" : "bilinear");
+    nc_log("hakuX-app", "present: Vulkan; FXAA %s, upscaling %s, frame generation %s",
+           g_fxaa ? "on" : "off",
+           g_upscale == NC_UPSCALE_SGSR ? "SGSR" : g_upscale == NC_UPSCALE_FSR ? "FSR 1" : "bilinear",
+           g_framegen ? "2x" : "off");
     return true;
 }
 
@@ -51,6 +56,17 @@ void nc_present_set_fxaa(bool on)
 void nc_present_set_upscale(int mode)
 {
     g_upscale = mode;
+}
+
+void nc_present_set_framegen(bool on)
+{
+    g_framegen = on;
+    hle_present_set_framegen(on);
+}
+
+void nc_present_set_sharpness(float stops)
+{
+    g_sharpness = stops;
 }
 
 void nc_present_set_aspect(int mode)
@@ -188,9 +204,13 @@ bool nc_present_frame(struct ANativeWindow *win)
     debug_poll();
     const bool fxaa = g_dbg.fxaa < 0 ? g_fxaa : g_dbg.fxaa != 0;
     const int upscale = g_dbg.upscale < 0 ? g_upscale : g_dbg.upscale;
-    /* what places and filters the frame, beside it and the window */
+    /* what places and filters the frame, beside it and the window: the
+     * sharpness packed to a step of a hundredth of a stop (a change of it
+     * re-presents, like the rest of the key) */
     const uint64_t key = (uint64_t)fxaa | (uint64_t)upscale << 1 | (uint64_t)g_dbg.average << 4 |
-                         (uint64_t)g_widescreen << 5 | (uint64_t)(uint32_t)g_aspect << 8;
+                         (uint64_t)g_widescreen << 5 | (uint64_t)g_framegen << 6 |
+                         (uint64_t)(unsigned)(g_sharpness * 100.0f + 0.5f) << 7 |
+                         (uint64_t)(uint32_t)g_aspect << 16;
     if (hle_present_unchanged(win, key)) {
         nc_dev_nv2a_display_pickup(now_ns()); /* it looked: the vblank keeps clear of it */
         wait_next_vsync();
@@ -206,6 +226,6 @@ bool nc_present_frame(struct ANativeWindow *win)
         place(fw, fh, ww, wh, &sx, &sy);
         __atomic_store_n(&g_shown, true, __ATOMIC_RELAXED);
     }
-    hle_present_end(sx, sy, fxaa, upscale, g_dbg.average, key);
+    hle_present_end(sx, sy, fxaa, upscale, g_dbg.average, g_sharpness, key);
     return true;
 }

@@ -34,8 +34,18 @@ bool hle_present_frame(uint32_t *w, uint32_t *h);
 /* end: the frame drawn into the window's middle (sx, sy: its half size in
  * clip space, 1 the whole window), the rest black, through the display's
  * gamma ramp, and presented. fxaa: FXAA over each new frame first; average:
- * false samples a frame larger than its place bilinearly too (comparisons).
+ * false samples a frame larger than its place bilinearly too (comparisons);
+ * sharpness: FSR 1's RCAS sharpening, in FsrRcasCon's stops (0 none).
  * key: what hle_present_unchanged compares next. */
-void hle_present_end(float sx, float sy, bool fxaa, int upscale, bool average, uint64_t key);
+void hle_present_end(float sx, float sy, bool fxaa, int upscale, bool average, float sharpness,
+                     uint64_t key);
+
+/* Frame generation 2x, set once before the first present: while the game
+ * runs behind the display's rate, each new frame is shown first as the
+ * blend of it and the one before (the picture halfway between), then as
+ * itself at the next refresh — the panel's rate met without touching the
+ * game's own frames or their input. Off, or a game that keeps up with the
+ * display, presents exactly as before. */
+void hle_present_set_framegen(bool on);
 
 #endif

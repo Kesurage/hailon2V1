@@ -96,6 +96,9 @@ fun SettingsScreen(
   var fxaa by remember { mutableStateOf(prefs.fxaa) }
   var upscale by remember { mutableStateOf(prefs.upscaleFilter) }
   var upscaleDialog by remember { mutableStateOf(false) }
+  var framegen by remember { mutableStateOf(prefs.frameGeneration) }
+  var sharpness by remember { mutableFloatStateOf(prefs.fsrSharpness) }
+  var sharpnessDialog by remember { mutableStateOf(false) }
   var stickSensitivity by remember { mutableFloatStateOf(prefs.stickSensitivity) }
   var stickDeadZone by remember { mutableFloatStateOf(prefs.stickDeadZone) }
   var lookSensitivity by remember { mutableFloatStateOf(prefs.lookSensitivity) }
@@ -384,10 +387,28 @@ fun SettingsScreen(
         supportingContent = {
           Text(
             stringResource(upscaleLabel(upscale)) + ". " + stringResource(R.string.settings_upscale_desc) + " " +
-              stringResource(R.string.settings_applies_next_start)
+            stringResource(R.string.settings_applies_next_start)
           )
         },
         modifier = Modifier.clickable { upscaleDialog = true },
+      )
+      ListItem(
+        headlineContent = { Text(stringResource(R.string.settings_sharpness)) },
+        supportingContent = {
+          Text(
+            stringResource(sharpnessLabel(sharpness)) + ". " +
+            stringResource(R.string.settings_sharpness_desc) + " " +
+            stringResource(R.string.settings_applies_next_start)
+          )
+        },
+        modifier = Modifier.clickable { sharpnessDialog = true },
+      )
+      SwitchItem(
+        title = stringResource(R.string.settings_framegen),
+        summary = stringResource(R.string.settings_framegen_desc) + " " +
+          stringResource(R.string.settings_applies_next_start),
+        checked = framegen,
+        onChange = { framegen = it; prefs.frameGeneration = it },
       )
       SwitchItem(
         title = stringResource(R.string.settings_async_shaders),
@@ -520,6 +541,15 @@ fun SettingsScreen(
       onDismiss = { upscaleDialog = false },
     )
   }
+  if (sharpnessDialog) {
+    ChoiceDialog(
+      title = stringResource(R.string.settings_sharpness),
+      options = SHARPNESSES.map { it to stringResource(sharpnessLabel(it)) },
+      current = SHARPNESSES.minByOrNull { kotlin.math.abs(it - sharpness) } ?: SHARPNESSES[1],
+      onPick = { sharpness = it; prefs.fsrSharpness = it; sharpnessDialog = false },
+      onDismiss = { sharpnessDialog = false },
+    )
+  }
   if (scaleDialog) {
     ChoiceDialog(
       title = stringResource(R.string.settings_scale),
@@ -572,6 +602,16 @@ internal fun scaleLabel(value: Int) = if (value == 1) stringResource(R.string.se
 internal val ASPECTS = listOf("auto", "4:3", "16:9", "stretch", "fill")
 
 internal val UPSCALERS = listOf(NativeCoreActivity.UPSCALE_BILINEAR, NativeCoreActivity.UPSCALE_FSR, NativeCoreActivity.UPSCALE_SGSR)
+
+/** FSR 1's RCAS sharpening, in stops (the settings' three choices). */
+internal val SHARPNESSES = listOf(0.5f, 0.87f, 1.25f)
+
+@Composable
+internal fun sharpnessLabel(value: Float) = when (value) {
+  0.5f -> R.string.settings_sharpness_soft
+  0.87f -> R.string.settings_sharpness_normal
+  else -> R.string.settings_sharpness_strong
+}
 internal val FORMATS = listOf(AppPrefs.FORMAT_NORMAL, AppPrefs.FORMAT_LETTERBOX, AppPrefs.FORMAT_WIDESCREEN)
 internal val CABLES = listOf(AppPrefs.AV_HDTV, AppPrefs.AV_STANDARD, AppPrefs.AV_SVIDEO)
 internal val LANGUAGES = listOf(AppPrefs.LANG_AUTO) + AppPrefs.XBOX_LANGUAGES

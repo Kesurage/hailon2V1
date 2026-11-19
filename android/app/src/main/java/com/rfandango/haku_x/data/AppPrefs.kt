@@ -123,10 +123,11 @@ class AppPrefs(context: Context) {
   /**
    * The look (right) stick's own response, apart from the move stick's: how
    * far the thumb drags for full turn, as mobile shooters' camera
-   * sensitivity (read at game start).
+   * sensitivity (read at game start). 1.2 by default since 0002D: the game's
+   * own progressive turn curve ate the middle of the range before.
    */
   var lookSensitivity: Float
-    get() = sp.getFloat(NativeCoreActivity.PREF_LOOK_SENSITIVITY, 1.0f)
+    get() = sp.getFloat(NativeCoreActivity.PREF_LOOK_SENSITIVITY, 1.2f)
     set(value) = sp.edit { putFloat(NativeCoreActivity.PREF_LOOK_SENSITIVITY, value) }
 
   /** A drag on the right of the screen, over no control, aims the camera (swipe look). */
@@ -139,10 +140,35 @@ class AppPrefs(context: Context) {
     get() = sp.getBoolean(NativeCoreActivity.PREF_FLOATING_STICK, true)
     set(value) = sp.edit { putBoolean(NativeCoreActivity.PREF_FLOATING_STICK, value) }
 
-  /** A swipe up from the bottom (or down from the top) over the picture opens the menu. */
+  /**
+   * A swipe up from the bottom (or down from the top) over the picture opens
+   * the menu. Off by default since 0002D: the small options button at the
+   * top middle opens it, and a swipe was too easy to make by playing (a
+   * forward walk looked like one). Turned on, the gestures start outside the
+   * thumbs' zones only.
+   */
   var swipeMenuOpen: Boolean
-    get() = sp.getBoolean(NativeCoreActivity.PREF_SWIPE_MENU, true)
+    get() = sp.getBoolean(NativeCoreActivity.PREF_SWIPE_MENU, false)
     set(value) = sp.edit { putBoolean(NativeCoreActivity.PREF_SWIPE_MENU, value) }
+
+  /**
+   * Frame generation 2x (read at game start): while the game runs behind the
+   * screen's rate, each empty refresh shows the blend of the frames either
+   * side of it — the panel's rate met, the game's own frames and their
+   * input untouched. On by default; a game that keeps up with the display
+   * never blends, and the toggle is one tap away.
+   */
+  var frameGeneration: Boolean
+    get() = sp.getBoolean(NativeCoreActivity.PREF_FRAMEGEN, true)
+    set(value) = sp.edit { putBoolean(NativeCoreActivity.PREF_FRAMEGEN, value) }
+
+  /**
+   * FSR 1's RCAS sharpening, in stops (read at game start): 0 none, 0.87
+   * AMD's sample default, 2 the most. The other upscalers don't sharpen.
+   */
+  var fsrSharpness: Float
+    get() = sp.getFloat(NativeCoreActivity.PREF_FSR_SHARPNESS, 0.87f)
+    set(value) = sp.edit { putFloat(NativeCoreActivity.PREF_FSR_SHARPNESS, value) }
 
   /**
    * How a picture smaller than its place on the screen is scaled up:

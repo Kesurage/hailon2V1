@@ -36,6 +36,33 @@ v1.3.0 release, and adds:
   GitHub Release on every `v*` tag. The in-app updater follows this
   repository's releases.
 
+## v0002D — frame generation 2x, the menu out of the thumbs' way
+
+- **Frame generation 2x** (Settings → Graphics, on by default): the
+  refreshes a game leaves empty (it runs below the screen's rate) show
+  the blend of the frames either side of them — the picture halfway
+  between — and the frame itself follows in the gap. Motion looks twice
+  as smooth; the game's own frames and their input are untouched, and a
+  game that keeps up with the display never blends.
+- **FSR 1's sharpening is a setting** — Soft, Normal, Strong — and FSR
+  runs under frame generation: the in-between is upscaled by EASU and
+  sharpened by RCAS like any frame.
+- **The menu stays out of the thumbs' way**: the swipe gestures are off
+  by default (a forward walk read as one, and the menu opened
+  mid-fight), and where they may still start is outside the thumbs'
+  zones. A small **options button** at the top middle opens the menu.
+- **The aim was too slow**: Halo 2's turn speed is progressive and a
+  plain dead-zone lift left a medium drag at a deflection it barely
+  turns at. The look's response bends now (its square root) — a medium
+  drag turns as a good push, a flick is still the full rim — with the
+  default sensitivity up to 1.2× and the full-tilt drag down to 115 dp.
+- **Moving and aiming no longer cost frames**: the move stick's knob
+  moves in fine steps (the input stays exact), so its display list and
+  gradients are recorded again only as it crosses one, and the overlays
+  redraw at most 45 times a second on any GPU driver — on the system
+  Mali driver the window's frames take turns with the game's, and
+  following the thumb at every touch sample cost the game frames.
+
 ## v0002C — free look, PUBG's way: nothing drawn, no fps cost
 
 - **What was broken in 0002B**: the look drew a ring where the finger

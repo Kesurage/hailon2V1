@@ -3,6 +3,7 @@ package com.rfandango.haku_x.overlay
 import android.content.Context
 import org.json.JSONObject
 import java.io.File
+import kotlin.math.abs
 
 /** How a control is drawn and how it takes touches. */
 enum class ControlKind { FACE, GEM, PILL, STICK, DPAD, TRIGGER, CLICK, MENU }
@@ -32,7 +33,7 @@ enum class ControlId(val kind: ControlKind, val label: String, val title: String
   LEFT_STICK_CLICK(ControlKind.CLICK, "LS", "Left stick click"),
   RIGHT_STICK_CLICK(ControlKind.CLICK, "RS", "Right stick click"),
   DPAD(ControlKind.DPAD, "", "D-pad"),
-  MENU(ControlKind.MENU, "", "Menu"),
+  MENU(ControlKind.MENU, "", "Options button"),
 }
 
 /**
@@ -94,6 +95,7 @@ object OverlayStore {
         return layout
       }
       val controls = root.optJSONObject("controls") ?: return layout
+      val menuDefault = layout[ControlId.MENU].copy()
       for (id in ControlId.entries) {
         val c = controls.optJSONObject(id.name) ?: continue
         val spec = layout[id]
@@ -104,6 +106,16 @@ object OverlayStore {
         spec.opacity = c.optDouble("o", DEFAULT_OPACITY.toDouble()).toFloat().coerceIn(MIN_OPACITY, 1f)
         spec.style = c.optString("s", ControlStyle.JEWEL.name).let {
           try { ControlStyle.valueOf(it) } catch (_: Exception) { ControlStyle.JEWEL }
+        }
+        /* A saved layout from before 0002D has the menu jewel at the bottom
+         * middle — between the thumbs, where an aim began on it and the menu
+         * opened mid-fight. Still there (not moved by hand), it becomes the
+         * small options button at the top middle; a place the user chose
+         * for it stays theirs. */
+        if (id == ControlId.MENU && spec.cy > h * 0.8f && abs(spec.cx - w / 2f) < w * 0.05f) {
+          spec.cx = menuDefault.cx
+          spec.cy = menuDefault.cy
+          spec.radius = menuDefault.radius
         }
       }
     } catch (_: Exception) {
@@ -150,8 +162,8 @@ object OverlayStore {
    * stick hidden — the right of the screen is the camera (a drag anywhere
    * over no control aims), its click (Halo 2's scope) a button of its own
    * under the diamond. The triggers sit in the top corners, white and black
-   * small at the top middle, and the menu jewel with back and start at the
-   * bottom centre.
+   * small at the top middle, the options button small at the top middle
+   * too, and back and start at the bottom centre.
    */
   fun defaults(w: Float, h: Float): OverlayLayout {
     val c = LinkedHashMap<ControlId, ControlSpec>()
@@ -178,9 +190,13 @@ object OverlayStore {
     put(ControlId.BLACK, w / 2 + h * 0.13f, h * 0.10f, gem)
 
     val pill = h * 0.042f
-    put(ControlId.MENU, w / 2, h * 0.92f, h * 0.05f)
     put(ControlId.BACK, w / 2 - h * 0.17f, h * 0.92f, pill)
     put(ControlId.START, w / 2 + h * 0.17f, h * 0.92f, pill)
+    /* The options button: small, at the top middle, out of both thumbs'
+     * ways — the swipe gestures that used to open the menu read a forward
+     * walk as one, so since 0002D a tap on this opens it (and they are off
+     * by default). */
+    put(ControlId.MENU, w / 2, h * 0.065f, h * 0.038f)
 
     put(ControlId.LEFT_TRIGGER, h * 0.14f, h * 0.13f, h * 0.064f)
     put(ControlId.RIGHT_TRIGGER, w - h * 0.14f, h * 0.13f, h * 0.064f)

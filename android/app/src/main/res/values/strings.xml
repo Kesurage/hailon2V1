@@ -214,6 +214,13 @@
   <string name="settings_upscale_bilinear">Bilinear</string>
   <string name="settings_upscale_fsr">AMD FSR 1.0 (sharp upscale)</string>
   <string name="settings_upscale_sgsr">Snapdragon GSR (sharper edges)</string>
+  <string name="settings_sharpness">FSR sharpening</string>
+  <string name="settings_sharpness_desc">How hard FSR 1 sharpens the upscaled picture. Soft is gentle, Strong the crispest (haloing around high-contrast edges at its most). Bilinear and Snapdragon GSR don\'t sharpen.</string>
+  <string name="settings_sharpness_soft">Soft</string>
+  <string name="settings_sharpness_normal">Normal (AMD\'s default)</string>
+  <string name="settings_sharpness_strong">Strong</string>
+  <string name="settings_framegen">Frame generation 2x</string>
+  <string name="settings_framegen_desc">While the game runs below the screen\'s rate, the empty refreshes show the blend of the frames either side of them — motion looks twice as smooth. The game\'s own frames and their input are untouched; a game that keeps up with the screen never blends.</string>
   <string name="settings_preset_speed">Performance preset (1x + FSR 1)</string>
   <string name="settings_preset_speed_desc">Sets the resolution scale to 1x, the upscaler to FSR 1 and FXAA off: the fastest good-looking combination on a slow GPU.</string>
   <string name="settings_stick_sensitivity">Stick sensitivity %1$.2f×</string>
@@ -225,7 +232,7 @@
   <string name="settings_floating_stick">Floating move stick</string>
   <string name="settings_floating_stick_desc">The move stick appears wherever the left thumb lands, instead of only at its fixed place — as a mobile game\'s joystick.</string>
   <string name="settings_swipe_menu">Swipe opens the menu</string>
-  <string name="settings_swipe_menu_desc">Swipe up from the bottom of the picture, or down from the top, to open the game\'s menu — over the picture, not over a control.</string>
+  <string name="settings_swipe_menu_desc">Swipe up from the bottom of the picture, or down from the top, to open the game\'s menu — off by default: the small options button at the top middle opens it, and a swipe was too easy to make by playing.</string>
   <string name="settings_section_console">Console</string>
   <string name="settings_language">Language</string>
   <string name="settings_language_desc">Games show their text and speech in it where they have it; the others keep their own. Takes effect at the next game start.</string>
