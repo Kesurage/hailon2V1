@@ -95,31 +95,39 @@ jobs:
           TAG="${GITHUB_REF#refs/tags/}"
           V="${{ env.VERSION }}"
           cat > release-notes.md <<EOF
-          hailon2V1 ${{ env.VERSION }} — free look, PUBG's way: nothing drawn, no fps cost
+          hailon2V1 ${{ env.VERSION }} — frame generation 2x, the menu out of the thumbs' way
 
-          The 0002B look showed a ring where your finger landed and redrew
-          it every single frame through the drawing path that this code's
-          own comment warns took ~80% of a render core on a Galaxy Tab —
-          that was the lag and the dropped frames while aiming. And the
-          right stick's ring was still there to fight. 0002C is the
-          mobile-shooter model, plainly:
-
-          - The right of the screen (from 42% across, the whole height)
-            is a plain invisible touchpad: drag anywhere a button isn't
-            to aim, PUBG / COD Mobile's way. Nothing is drawn for it —
-            no ring, no knob, nothing.
-          - The right stick's ring is not shown while free look is on
-            (Settings: Free look — turn it off and the stick is back).
-          - Aiming now redraws zero pixels of the overlay and wakes the
-            turn-rate pump only while something changes: a held-still
-            finger costs literally nothing. The fps drop is gone at the
-            source.
-          - The camera stops the instant the finger lifts or rests
-            (80 ms); every movement still goes to the game above its
-            dead zone (0002B's fix, kept).
+          - Frame generation 2x (Settings → Graphics, on by default):
+            while the game runs below the screen's rate, every refresh it
+            leaves empty shows the blend of the frames either side — the
+            picture halfway between — and the frame itself follows in the
+            gap. Motion looks twice as smooth; the game's own frames and
+            their input are untouched, and a game that keeps up with the
+            display never blends.
+          - FSR 1's sharpening (RCAS) is a setting of its own now — Soft,
+            Normal (AMD's default), Strong — and FSR runs under frame
+            generation: the in-between is upscaled and sharpened like any
+            frame.
+          - The menu stays out of the thumbs' way: the swipe gestures are
+            off by default (a forward walk with the left stick read as
+            one, and the menu opened mid-fight), and where they may still
+            start is outside the thumbs' zones. A small options button at
+            the top middle opens the menu.
+          - The aim was too slow: Halo 2's turn speed is progressive, and
+            a plain dead-zone lift left a medium drag at a deflection the
+            game barely turns at. The look's response bends now (its
+            square root) — a medium drag turns as a good push of the
+            stick, a flick is still the full rim — with the default
+            sensitivity up to 1.2x and the full-tilt drag down to 115 dp.
+          - Moving and aiming no longer cost frames: the move stick's
+            knob moves in fine steps (the input itself stays exact), so
+            its display list is recorded again only as it crosses one,
+            and the overlays redraw at most 45 times a second on any GPU
+            driver — following the thumb at every touch sample cost the
+            game frames on the system Mali driver.
 
           hailon2V1-$V-debug.apk installs beside the stock hakuX (its id
-          ends in .debug) and updates over 0002B. hailon2V1-$V-release.apk
+          ends in .debug) and updates over 0002C. hailon2V1-$V-release.apk
           is the plain release build.
           GPL-3.0+ — source in this repository.
           EOF
