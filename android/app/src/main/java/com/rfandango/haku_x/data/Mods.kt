@@ -339,7 +339,7 @@ object ModRun {
    */
   private fun mapCacheClear(context: Context, gameKey: String, files: List<Pair<String, File>>) {
     val stamp = gameKey + "\n" + files.joinToString("\n") { (disc, host) ->
-      "$disc|${host.length}|${host.lastModified()}"
+      "$disc|${host.length()}|${host.lastModified()}"
     }
     val file = File(context.filesDir, "native/mods_files.stamp")
     if (file.isFile && file.readText() == stamp) {
