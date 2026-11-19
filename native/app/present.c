@@ -142,7 +142,13 @@ static void place(uint32_t fw, uint32_t fh, uint32_t ww, uint32_t wh, float *sx,
         break;
     case NC_ASPECT_FILL:
         /* Cover, not contain: scale by the larger ratio, centered, so the
-         * parts that don't fit the window's shape are cropped. */
+         * parts that don't fit the window's shape are cropped. A
+         * standard-definition frame from a console set to widescreen is
+         * anamorphic — its shape is 16:9, not its pixels' — so it covers
+         * at that shape (as Auto shows it), not squashed into 4:3. */
+        if (g_widescreen && fa < 1.6f) {
+            fa = 16.0f / 9.0f;
+        }
         *sx = *sy = 1.0f;
         if (wa > fa) {
             *sy = wa / fa;
