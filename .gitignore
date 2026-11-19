@@ -1,3 +1,44 @@
+# --- from hakuX (upstream rules, paths unchanged) ---
+/build/
+/.cache/
+/.vscode/
+/.idea/
+/.claude/
+*.pyc
+__pycache__/
+*~
+*.swp
+.DS_Store
+Thumbs.db
+Desktop.ini
+*.log
+logcat_*.txt
+hs_err_pid*.log
+replay_pid*.log
+*.aab
+/*.txt
+/out/
+profile-out/
+profile-out-*/
+/android/app/src/debug/jniLibs/arm64-v8a/libVkLayer_GLES_RenderDoc.so
+/android/app/src/main/jniLibs/arm64-v8a/libhakuxcore.so
+/android/app/src/main/jniLibs/arm64-v8a/libSDL3.so
+/android/app/src/main/jniLibs/arm64-v8a/libmain_hook.so
+/android/app/src/main/jniLibs/arm64-v8a/libfile_redirect_hook.so
+/android/app/src/main/jniLibs/arm64-v8a/libgsl_alloc_hook.so
+/android/app/src/main/jniLibs/arm64-v8a/libkgsl_context_hook.so
+/android/app/src/main/jniLibs/arm64-v8a/libhook_impl.so
+/CLAUDE.md
+/.device.lock
+# hakuX keeps only some of tools/ tracked; we also keep tools/ci (our CI) and
+# tools/hle (upstream-tracked debug tooling, force-added below).
+/tools/*
+!/tools/native/
+!/tools/mods/
+!/tools/ci/
+!/tools/hle/
+
+# --- hailon2V1 launcher (legacy skeleton, builds nothing native) ---
 .gradle/
 build/
 local.properties
@@ -5,5 +46,4 @@ local.properties
 *.iml
 captures/
 .cxx/
-*.log
-!docs/**/*.png
+!launcher/docs/**/*.png
