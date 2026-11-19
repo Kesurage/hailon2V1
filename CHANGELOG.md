@@ -1,5 +1,13 @@
 # Changelog
 
+## v0002B
+
+The touch look actually works now.
+
+- **What was broken in 0002A, plainly**: a normal aim swipe built up to ~0.13 stick deflection, and Halo 2 ignores everything under ~0.28 — its own stick dead zone. Slow and medium swipes did nothing at all; only hard flicks got through.
+- **The fix, on the four points of the spec**: every deflection we mean at all is lifted over the game's dead zone on its way out (`lift`: the smallest movement goes as 0.28 at the least, the rim is still full tilt — and it goes for the move stick too, a gentle push now walks); the look's deltas are in dp and the turn rate's ease is set by the frame's own time (the same feel at 60 Hz and 120 Hz, on any panel); a finger still for 40 ms stops the camera on the next frame (no drift, no spin); a quick drag of ~140 dp held over the ease is a full-tilt turn, scaled by the sensitivity slider.
+- **Modding instructions in the app**: the Mods screen now says in plain words how it works — maps and character models live inside the game's map files; export the modded `.map` from Assembly (keep its file name) and import it here; a `mod.txt` or a ZIP works too; Assembly's own `.mod` project files are for Assembly itself.
+
 ## v0002A
 
 Xash3D's touchpad look, the native screen (the game rendered for the phone's whole panel), and the mod loader.

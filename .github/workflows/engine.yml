@@ -95,42 +95,36 @@ jobs:
           TAG="${GITHUB_REF#refs/tags/}"
           V="${{ env.VERSION }}"
           cat > release-notes.md <<EOF
-          hailon2V1 ${{ env.VERSION }} — Xash3D touchpad look, the native screen, the mod loader
+          hailon2V1 ${{ env.VERSION }} — the touch look actually works now
 
-          Over 1.7.0:
+          The 0002A look was dead in the water and here is why, plainly:
+          a normal aim swipe built up to about 0.13 stick deflection, and
+          Halo 2 ignores everything under about 0.28 (its own dead zone).
+          Slow and medium swipes did nothing at all. 0002B fixes exactly
+          that, on the four points of the spec:
 
-          - The look is a touchpad, Xash3D's way (its in_touch.c: the look
-            is "like a touchpad" — every move of the finger turns the view
-            by that movement, through touch_yaw and touch_pitch; no anchor,
-            no rim, no dead zone). A finger-width drag aims that much,
-            always: each move adds to a turning rate that eases away as
-            the finger stops, so the camera follows the finger at any pace
-            and stops when it does. The ring stays where the finger
-            landed, its knob showing the turning.
-          - The native screen: Halo 2 renders for the phone's whole panel.
-            The game's anamorphic factor (the Halo 2 HD patch's own
-            address 0x45DFDC; the camera FOV global beside it confirmed by
-            the retail decompilation, kirklandsig/halo2-decompiled) is
-            patched at game start to this screen's own shape, and the
-            Native aspect lays the frame over the whole screen: the
-            widened view and the stretch cancel out — full screen, no
-            bars, no crop, no distortion. On by default (Mods & cheats ->
-            Native camera; experimental: the HUD is drawn for the wider
-            shape, and a title update's own XBE is not patched). Fit and
-            Fill stay in Settings -> Display.
-          - The mod loader: Mods & cheats -> Import a mod — a modded Halo
-            cache map (.map, as Assembly and the Xbox map tools write
-            them; keep the map's own file name and it replaces it on the
-            disc), a mod.txt of XBE patches, or a ZIP holding either.
-            Imported mods toggle like the built-ins, are removed with
-            their button, and the game reads them at its next start.
-          - FSR 1 runs (1.7.0's fix) under the native screen too: the
-            frame, anamorphic and all, upscaled by EASU and sharpened by
-            RCAS.
+          - Every deflection we mean at all is lifted over the game's
+            dead zone on its way out: the smallest movement of a finger
+            goes as 0.28 turn at the least, so micro-swipes aim instead
+            of dying, and the rim is still full tilt. This lift goes for
+            the move stick too — a gentle push now walks.
+          - The deltas are in dp, and the turn rate's ease is set by the
+            frame's own time, not by a per-frame guess: the same feel at
+            60 Hz and 120 Hz, on any panel.
+          - A finger still for 40 ms stops the camera on the next frame.
+            No drifting, no spinning.
+          - A quick drag of about 140 dp held over the ease is a
+            full-tilt turn; the sensitivity slider scales it (higher =
+            less drag for the same turn).
 
-          hailon2V1-$V-debug.apk installs beside the stock hakuX (its id ends
-          in .debug) and updates over 1.7.0. hailon2V1-$V-release.apk is the
-          plain release build.
+          Also: the Mods screen now carries the modding instructions in
+          plain words — maps and character models live inside the game's
+          map files, so export the modded .map from Assembly (keep its
+          file name) and import it here; a mod.txt or a ZIP works too.
+
+          hailon2V1-$V-debug.apk installs beside the stock hakuX (its id
+          ends in .debug) and updates over 0002A. hailon2V1-$V-release.apk
+          is the plain release build.
           GPL-3.0+ — source in this repository.
           EOF
           {

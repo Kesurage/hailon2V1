@@ -355,6 +355,9 @@
   <string name="mods_native_camera">Native camera — this screen</string>
   <string name="mods_native_camera_desc">Halo 2 renders for the phone\'s whole panel (its anamorphic factor widened to this screen\'s shape), so under the Native aspect the picture fills the screen with no crop and no stretching. Experimental: the HUD is drawn for the wider shape too, and a title update\'s own XBE is not patched — if anything misbehaves, turn it off.</string>
   <string name="mods_section_imported">Imported</string>
+  <string name="mods_howto_title">How to mod</string>
+  <string name="mods_howto_maps">Maps and character models live inside the game\'s map files. On a PC, open a map in Assembly (or Entity) from the game\'s ISO — maps\\coagulation.map and the rest — edit what you like (levels, weapons, character models, skins), and save or export the .map. Keep the map\'s own file name (coagulation.map stays coagulation.map), then Import it here: from the game\'s next start it loads in place of the disc\'s. A ZIP of maps works too.</string>
+  <string name="mods_howto_patches">XBE patches: a mod.txt — a name, a description, a [default.xbe] section with 0x-address patch lines (the format is mods/README.md in the app\'s source) — or a ZIP with it and a files/ folder. Assembly\'s .mod project files are for Assembly itself: export the map (or the patch bytes) and bring that.</string>
   <string name="mods_import">Import a mod</string>
   <string name="mods_import_desc">A modded Halo cache map (.map — keep the map\'s own file name, and it replaces it on the disc; Assembly and the Xbox map tools write these), a mod.txt of XBE patches, or a ZIP holding either. The mod goes on at once; the game reads it at its next start.</string>
   <string name="mods_imported">%1$s added and on. It is read the next time the game starts.</string>

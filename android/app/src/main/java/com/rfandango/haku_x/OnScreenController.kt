@@ -31,9 +31,11 @@ import java.io.File
 import kotlin.math.abs
 import kotlin.math.atan2
 import kotlin.math.ceil
+import kotlin.math.exp
 import kotlin.math.floor
 import kotlin.math.hypot
 import kotlin.math.max
+import kotlin.math.min
 import kotlin.math.roundToInt
 
 /**
@@ -106,10 +108,12 @@ class OnScreenController @JvmOverloads constructor(
   private val lookAnchor = PointF()
   private val lookLast = PointF()
   /* the finger's speed as the stick: each move adds to a turning rate that
-   * eases away as the finger stops (lookPump) — Xash3D's touchpad look
-   * through the Xbox's stick */
+   * eases away with time (lookPump) — Xash3D's touchpad look through the
+   * Xbox's stick. lastLookMoveMs is when a move last came: a finger still
+   * for LOOK_IDLE_MS stops the camera at once */
   private var lookVX = 0f
   private var lookVY = 0f
+  private var lastLookMoveMs = 0L
   private var lookX = 0f
   private var lookY = 0f
   /* a stick floating with its pointer: the layout place to go back to */
@@ -717,27 +721,49 @@ class OnScreenController @JvmOverloads constructor(
       ky = lookY
     }
     stickPos[i].set(kx, ky)
-    listener?.onStickMoved(if (i == 0) Stick.LEFT else Stick.RIGHT, kx, ky)
+    emitStick(i, kx, ky)
+  }
+
+  /*
+   * The game's own stick dead zone: below it a stick does nothing at all —
+   * Halo's is ~0.28 of its range, and a deflection under it is simply
+   * eaten. Every deflection we mean at all is lifted over it on its way
+   * out (lift): a touch that moves goes as 0.28 at the least, so a
+   * micro-swipe aims instead of dying in the dead zone, and the rest of
+   * the range rides up with it — the same full tilt at the rim.
+   */
+  private fun emitStick(i: Int, x: Float, y: Float) {
+    listener?.onStickMoved(if (i == 0) Stick.LEFT else Stick.RIGHT, lift(x), lift(y))
+  }
+
+  /** Over the game's dead zone or nothing: rest stays rest (0 stays 0). */
+  private fun lift(v: Float): Float {
+    val a = abs(v)
+    if (a < 0.02f) return 0f
+    val s = GAME_DEADZONE + (1f - GAME_DEADZONE) * min(a, 1f)
+    return if (v < 0f) -s else s
   }
 
   /**
    * The camera as a touchpad, Xash3D's way (its in_touch.c calls the look
    * "like a touchpad": every move of the finger turns the view by that
-   * movement, through touch_yaw and touch_pitch — no anchor to push
-   * against, no rim, no dead zone; a finger-width drag aims that much,
-   * always). Through the Xbox's stick it is the finger's speed that is
-   * the deflection: each move adds to a turning rate that the pump below
-   * eases away as the finger stops, so the camera follows the finger at
-   * any pace and stops when it does. The ring stays where the finger
-   * landed, its knob showing the turning.
+   * movement — no anchor, no rim, no dead zone). Through the Xbox's stick
+   * the finger's speed is the deflection: each move's delta (in dp, the
+   * same drag on any panel) adds to a turning rate, which the pump below
+   * eases away with time — the sum of a drag's deltas held over that ease
+   * is the drag's speed times it, so the camera turns as fast as the
+   * finger moves and stops when it stops. A drag of LOOK_DRAG_DP dp in
+   * LOOK_TAU_S is a full-tilt turn.
    */
   private fun moveLook(x: Float, y: Float) {
-    val dx = (x - lookLast.x) / width    /* fractions of the screen, Xash3D's own scale */
-    val dy = (y - lookLast.y) / height
+    val density = resources.displayMetrics.density
+    val dx = (x - lookLast.x) / density
+    val dy = (y - lookLast.y) / density
     lookLast.set(x, y)
-    val k = 2.5f * prefs.lookSensitivity
-    var vx = lookVX + dx * k
-    var vy = lookVY + dy * k
+    lastLookMoveMs = SystemClock.uptimeMillis()
+    val dpFull = LOOK_DRAG_DP / prefs.lookSensitivity
+    var vx = lookVX + dx / dpFull
+    var vy = lookVY + dy / dpFull
     val m = hypot(vx, vy)
     if (m > 1f) {                          /* the stick's rim: a flick is a full-tilt turn */
       vx /= m
@@ -752,25 +778,40 @@ class OnScreenController @JvmOverloads constructor(
   private val lookStickRadius get() = height * 0.10f
 
   /*
-   * The turning rate's life between the finger's moves: each display frame
-   * a fifth of it is left (the finger held still settles the camera in
-   * ~100 ms), the stick eased toward it (LOOK_SMOOTH's calm), and the
-   * drawing asked for. It runs while the finger is down and until the
-   * stick has drained after it lifts.
+   * The turning rate's life between the finger's moves, frame-time
+   * normalized (the same ease at any refresh rate): while the finger
+   * moves, each display frame the rate keeps a fraction of itself set by
+   * the time the frame took; a finger still for LOOK_IDLE_MS zeroes the
+   * rate at once, on the next frame — an idle touch never spins the
+   * camera. What goes to the game is the rate lifted over its dead zone
+   * (lift), so even the smallest movement turns. It runs while the finger
+   * is down, and until the rate has drained after it lifts.
    */
   private var lookPumpOn = false
-  private val lookPump: Choreographer.FrameCallback = Choreographer.FrameCallback {
-    lookVX *= 0.8f
-    lookVY *= 0.8f
-    lookX += (lookVX - lookX) * LOOK_SMOOTH
-    lookY += (lookVY - lookY) * LOOK_SMOOTH
-    stickPos[1].set(lookX, lookY)
-    listener?.onStickMoved(Stick.RIGHT, lookX, lookY)
-    redrawWanted()
-    lookPumpOn = lookPointer != -1 || abs(lookX) + abs(lookY) > 0.01f
-    if (lookPumpOn) {
-      Choreographer.getInstance().postFrameCallback(lookPump)
+  private var lastFrameNs = 0L
+  private val lookPump: Choreographer.FrameCallback = Choreographer.FrameCallback { frameNs ->
+    val dt = if (lastFrameNs == 0L) 1f / 60f else (frameNs - lastFrameNs) / 1e9f
+    lastFrameNs = frameNs
+    if (SystemClock.uptimeMillis() - lastLookMoveMs > LOOK_IDLE_MS) {
+      lookVX = 0f
+      lookVY = 0f
+    } else {
+      val decay = exp(-dt / LOOK_TAU_S)
+      lookVX *= decay
+      lookVY *= decay
     }
+    stickPos[1].set(lookVX, lookVY)
+    emitStick(1, lookVX, lookVY)
+    redrawWanted()
+    if (lookPointer == -1 && abs(lookVX) + abs(lookVY) < 0.02f) {
+      lookVX = 0f
+      lookVY = 0f
+      stickPos[1].set(0f, 0f)
+      emitStick(1, 0f, 0f)
+      lookPumpOn = false
+      return@FrameCallback
+    }
+    Choreographer.getInstance().postFrameCallback(lookPump)
   }
 
   private fun startLookPump() {
@@ -784,13 +825,11 @@ class OnScreenController @JvmOverloads constructor(
     lookPointer = -1
     lookVX = 0f
     lookVY = 0f
-    /* the stick drains to rest by the pump (an eased stop, not a snap);
-     * if it already rests, the game is told at once */
+    /* the pump stops the emissions (an eased stop); if it isn't running,
+     * the game is told rest at once */
     if (!lookPumpOn) {
-      lookX = 0f
-      lookY = 0f
       stickPos[1].set(0f, 0f)
-      listener?.onStickMoved(Stick.RIGHT, 0f, 0f)
+      emitStick(1, 0f, 0f)
       redrawWanted()
     }
   }
@@ -1131,6 +1170,16 @@ class OnScreenController @JvmOverloads constructor(
     val ACCENT = 0xFF8BC34A.toInt()
     /** The look's smoothing: this much of the way to each new deflection. */
     const val LOOK_SMOOTH = 0.5f
+    /** The game's own stick dead zone (Halo's is ~0.28 of the range): below
+     * it a stick does nothing at all — every deflection is lifted over it
+     * on its way out (lift). */
+    const val GAME_DEADZONE = 0.28f
+    /** The dp of drag that, held within the ease's window, is a full-tilt turn. */
+    const val LOOK_DRAG_DP = 140f
+    /** The turning rate's ease when the finger rests, in seconds (any refresh rate). */
+    const val LOOK_TAU_S = 0.07f
+    /** A finger still this long stops the camera at once (ms). */
+    const val LOOK_IDLE_MS = 40L
     val DPAD_BUTTONS = listOf(
       ControlPainter.DPAD_UP to Button.DPAD_UP,
       ControlPainter.DPAD_DOWN to Button.DPAD_DOWN,

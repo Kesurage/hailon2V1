@@ -117,6 +117,9 @@ fun ModsScreen(gameKey: String, title: String, onBack: () -> Unit) {
         }
       }
       Section(stringResource(R.string.mods_section_imported))
+      Hint(stringResource(R.string.mods_howto_title))
+      Hint(stringResource(R.string.mods_howto_maps))
+      Hint(stringResource(R.string.mods_howto_patches))
       Hint(stringResource(R.string.mods_import_desc))
       for (mod in imported) {
         UserModRow(
