@@ -79,8 +79,10 @@ if [ ! -f "$DEST/root/subprojects/nv2a_vsh_cpu/.fetched" ]; then
     561fe80da57a881f89000256b459440c0178a7ce "$DEST/root/subprojects/nv2a_vsh_cpu"
 fi
 
-# libslirp v4.7.0 (the NAT backend's userspace network stack)
-clone_tag https://gitlab.freedesktop.org/slirp/libslirp.git v4.7.0 "$DEST/libslirp"
+# libslirp 4.7.0-era master, 26be815b (the revision android/README.md pins —
+# the v4.7.0 tag itself predates slirp_ssize_t, which native/net/nat.c uses)
+clone_sha https://gitlab.freedesktop.org/slirp/libslirp.git \
+  26be815b86e8d49add8c9a8b320239b9594ff03d "$DEST/libslirp"
 
 echo "fetch-nc-deps: done"
 du -sh "$DEST"/* | sed 's|^|  |'
