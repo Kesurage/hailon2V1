@@ -173,6 +173,7 @@
   <string name="settings_theme_light">Light</string>
   <string name="settings_theme_dark">Dark</string>
   <string name="settings_section_graphics">Graphics</string>
+  <string name="settings_graphics_hint">Speed on a slow GPU: resolution scale 1x (the console\'s own) with FSR 1 upscaling to the screen. Sharper, at a cost: 2x or 3x. The picture always fills the screen at its native resolution.</string>
   <string name="settings_section_logs">Logs</string>
   <string name="settings_export_logs">Export logs</string>
   <string name="settings_export_logs_desc">The logs of this app session and the four before it, as one ZIP in a folder you choose. Attach it when you report a problem.</string>
@@ -198,8 +199,9 @@
   <string name="settings_fxaa">FXAA anti-aliasing</string>
   <string name="settings_fxaa_desc">Smooths jagged edges of each frame. Most useful at low resolution scales: a scale above the screen\'s already smooths them.</string>
   <string name="settings_upscale">Upscaling filter</string>
-  <string name="settings_upscale_desc">For a picture smaller than the screen.</string>
+  <string name="settings_upscale_desc">For a picture smaller than the screen. FSR 1 also sharpens, so it replaces FXAA while it runs.</string>
   <string name="settings_upscale_bilinear">Bilinear</string>
+  <string name="settings_upscale_fsr">AMD FSR 1.0 (sharp upscale)</string>
   <string name="settings_upscale_sgsr">Snapdragon GSR (sharper edges)</string>
   <string name="settings_section_console">Console</string>
   <string name="settings_language">Language</string>
@@ -208,6 +210,9 @@
   <string name="settings_console_timing">Console drive timing</string>
   <string name="settings_console_timing_desc">Disc and hard disk reads take time, a quarter of the console\'s at its fastest, so a game\'s other threads run while it loads, as games expect (off, some can freeze: Morrowind leaving a building). Loads are slower.</string>
   <string name="settings_section_updates">Updates</string>
+  <string name="settings_section_about">About</string>
+  <string name="settings_about_version">hailon2V1 %1$s — an Xbox emulator built on the hakuX engine.</string>
+  <string name="settings_about_body">Free software, GPL-3.0+: the engine and its sources are in the hailon2V1 repository on GitHub, with the APKs\' build. Your games are your own dumps; nothing copyrighted ships with the app.</string>
   <string name="settings_update_check">Check for updates</string>
   <string name="settings_update_check_desc">hakuX %1$s. Looks for a newer release on GitHub, as the app also does each time it starts.</string>
   <string name="settings_update_checking">Checking…</string>

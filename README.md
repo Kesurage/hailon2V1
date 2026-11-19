@@ -36,6 +36,37 @@ v1.3.0 release, and adds:
   GitHub Release on every `v*` tag. The in-app updater follows this
   repository's releases.
 
+## v1.4.0 — the launcher release
+
+- **AMD FidelityFX Super Resolution 1.0** (EASU + RCAS, from AMD's
+  FidelityFX-FSR, MIT — `licenses/fsr1.license.txt`) as a third upscaling
+  filter: Settings → Graphics → Upscaling filter. On the Helio G100's
+  two-core Mali-G57, **1x resolution + FSR 1** is the speed preset — the
+  frame is edge-rebuilt at the panel's size instead of bilinear-blurred —
+  and 2x/3x + FSR is the quality one. FSR replaces FXAA while it runs
+  (RCAS sharpens).
+- **Touch sticks fixed**: the dead zone used to jump straight from zero to
+  the raw deflection; it now ramps smoothly from its edge, and full
+  deflection is reached a little inside the rim, where a thumb actually
+  lands. The overlay editor (move, resize, hide, per-control opacity) and
+  the jewel-style icons are hakuX's own and stay.
+- **HUD = FPS only**: the debug hitch monitor is off by default now (the
+  toggle remains in the settings); the FPS counter stays.
+- Full-screen with the notch (`shortEdges`) and the panel's native
+  resolution path were already hakuX master's — nothing was lost in the fork.
+- **Custom Vulkan drivers** (a panvk build among them) load through
+  Settings → GPU driver on phones with `/dev/mali0` — the stock MediaTek
+  driver remains the default; panvk is an experiment for the G57, not a
+  requirement.
+
+### To do (not in this release)
+
+- Motion-blur-off and per-game 60 fps mods (the engine's mod loader already
+  ships: Settings per game → Mods & cheats; `tools/mods/` has Halo 2 120 fps
+  tooling upstream).
+- MSAA as a quality option; per-game FSR sharpness.
+- A panvk driver package for the G57 to try from the settings.
+
 The earlier hailon2V1 launcher skeleton (a UI mock with stubs) is kept under
 `launcher/` (its workflow only runs on changes there).
 

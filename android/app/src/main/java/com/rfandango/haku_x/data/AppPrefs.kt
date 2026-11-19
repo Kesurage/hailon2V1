@@ -82,7 +82,7 @@ class AppPrefs(context: Context) {
 
   /** Debug builds: the HLE GPU's stutter and hang monitor over the game (NativeCoreActivity). */
   var showHitches: Boolean
-    get() = sp.getBoolean(NativeCoreActivity.PREF_SHOW_HITCHES, true)
+    get() = sp.getBoolean(NativeCoreActivity.PREF_SHOW_HITCHES, false)
     set(value) = sp.edit { putBoolean(NativeCoreActivity.PREF_SHOW_HITCHES, value) }
 
   /** The HLE GPU's render scale, 1-4x the title's resolution (read at game start). */

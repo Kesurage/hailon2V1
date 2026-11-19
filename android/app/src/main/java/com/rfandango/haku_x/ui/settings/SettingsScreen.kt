@@ -290,6 +290,7 @@ fun SettingsScreen(
       )
 
       Section(stringResource(R.string.settings_section_graphics))
+      Hint(stringResource(R.string.settings_graphics_hint))
       ListItem(
         headlineContent = { Text(stringResource(R.string.settings_scale)) },
         supportingContent = {
@@ -374,6 +375,10 @@ fun SettingsScreen(
         supportingContent = { Text(stringResource(R.string.settings_export_logs_desc)) },
         modifier = Modifier.clickable { pickLogsFolder.launch(null) },
       )
+
+      Section(stringResource(R.string.settings_section_about))
+      Hint(stringResource(R.string.settings_about_version, BuildConfig.VERSION_NAME))
+      Hint(stringResource(R.string.settings_about_body))
     }
   }
 
@@ -495,7 +500,7 @@ internal fun scaleLabel(value: Int) = if (value == 1) stringResource(R.string.se
 
 internal val ASPECTS = listOf("auto", "4:3", "16:9", "stretch")
 
-internal val UPSCALERS = listOf(NativeCoreActivity.UPSCALE_BILINEAR, NativeCoreActivity.UPSCALE_SGSR)
+internal val UPSCALERS = listOf(NativeCoreActivity.UPSCALE_BILINEAR, NativeCoreActivity.UPSCALE_FSR, NativeCoreActivity.UPSCALE_SGSR)
 internal val FORMATS = listOf(AppPrefs.FORMAT_NORMAL, AppPrefs.FORMAT_LETTERBOX, AppPrefs.FORMAT_WIDESCREEN)
 internal val CABLES = listOf(AppPrefs.AV_HDTV, AppPrefs.AV_STANDARD, AppPrefs.AV_SVIDEO)
 internal val LANGUAGES = listOf(AppPrefs.LANG_AUTO) + AppPrefs.XBOX_LANGUAGES
@@ -569,6 +574,7 @@ internal fun cableLabel(value: String) = when (value) {
 }
 
 internal fun upscaleLabel(value: String) = when (value) {
+  NativeCoreActivity.UPSCALE_FSR -> R.string.settings_upscale_fsr
   NativeCoreActivity.UPSCALE_SGSR -> R.string.settings_upscale_sgsr
   else -> R.string.settings_upscale_bilinear
 }

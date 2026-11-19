@@ -13,7 +13,8 @@
  *    screen's) is averaged down, each window pixel the mean of the frame
  *    pixels it covers, where a bilinear sample would skip most of them and
  *    keep the edges' stairs;
- *  - a smaller one is scaled up bilinearly, or by Snapdragon Game Super
+ *  - a smaller one is scaled up bilinearly, by AMD FidelityFX Super
+ *    Resolution 1 (licenses/fsr1.license.txt) or by Snapdragon Game Super
  *    Resolution 1, which rebuilds its edges.
  * FXAA is FXAA 3.11 Quality (Timothy Lottes) as PCSX2's fxaa.fx tunes it
  * (GPL-3.0-or-later); SGSR is Qualcomm's sgsr1_shader_mobile.frag
@@ -37,12 +38,16 @@
 #include "hw/xbox/hle/vk/swapchain.h"
 
 #include <android/native_window.h>
+#include <math.h>
 
 #define T (g_ps.t)
 #define PS_FRAMES 3             /* the presenter's submits in flight */
 #define PS_RAMP 1024            /* a frame's share of the ramp buffer (768 used) */
 
-enum { P_BILINEAR, P_AREA, P_SGSR, P_FXAA, P_COUNT };
+/* P_FSR_EASU renders into the FSR image (RGBA8, like FXAA's, its pipeline
+ * built once); the others into the window's images (their pipelines rebuilt
+ * when the swapchain's format changes). */
+enum { P_BILINEAR, P_AREA, P_SGSR, P_FSR_RCAS, P_FXAA, P_FSR_EASU, P_COUNT };
 
 typedef struct PsFrame {
     VkCommandPool pool;
@@ -94,6 +99,12 @@ static struct {
     VkImageView fx_view;
     uint32_t fx_w, fx_h;
     uint64_t fx_serial;         /* the frame it holds */
+    /* FSR 1's EASU image, the frame's place in the window at its size */
+    VkImage fsr_img;
+    VkDeviceMemory fsr_mem;
+    VkImageView fsr_view;
+    uint32_t fsr_w, fsr_h;
+    uint64_t fsr_serial;        /* the frame it holds */
     /* the display's gamma ramp */
     uint8_t ramp[3][256];
     uint32_t ramp_gen;
@@ -304,6 +315,195 @@ static const char k_fs_sgsr[] =
     "  o = ramp(color.xyz);\n"
     "}\n";
 
+/* AMD FidelityFX Super Resolution 1 (EASU, then RCAS below), from AMD's
+ * FidelityFX-FSR ffx_fsr1.h and the sample's Vulkan GLSL pass (FSR_Pass.glsl),
+ * v1.20210629:
+ *
+ *   Copyright (c) 2021 Advanced Micro Devices, Inc. All rights reserved.
+ *   Permission is hereby granted, free of charge, to any person obtaining a copy
+ *   of this software and associated documentation files(the "Software"), to deal
+ *   in the Software without restriction, including without limitation the rights
+ *   to use, copy, modify, merge, publish, distribute, sublicense, and / or sell
+ *   copies of the Software, and to permit persons to whom the Software is
+ *   furnished to do so, subject to the following conditions:
+ *   The above copyright notice and this permission notice shall be included in
+ *   all copies or substantial portions of the Software.
+ *   THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ *   IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ *   FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.IN NO EVENT SHALL THE
+ *   AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+ *   LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+ *   OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+ *   THE SOFTWARE.
+ *
+ * FsrEasuCon's uint packing (a constant-buffer detail) is kept in floats, and
+ * its approximated reciprocals are exact ones; the taps and the set-up are
+ * as written. EASU renders the frame into an image the size of its place in
+ * the window: pc.extra is that (inW, inH, outW, outH). */
+static const char k_fs_fsr_easu[] =
+    "vec4 gatherR(vec2 p) { return textureGather(u_tex, p, 0); }\n"
+    "vec4 gatherG(vec2 p) { return textureGather(u_tex, p, 1); }\n"
+    "vec4 gatherB(vec2 p) { return textureGather(u_tex, p, 2); }\n"
+    "void easuCon(out vec4 c0, out vec4 c1, out vec4 c2, out vec4 c3,\n"
+    "             vec2 inVp, vec2 inSize, vec2 outSize) {\n"
+    "  vec2 s = inVp / outSize;\n"
+    "  c0 = vec4(s, s * 0.5 - 0.5);\n"
+    "  vec2 r = 1.0 / inSize;\n"
+    "  c1 = vec4(r, r.x, -r.y);\n"
+    "  c2 = vec4(-r.x, 2.0 * r.y, r.x, 2.0 * r.y);\n"
+    "  c3 = vec4(0.0, 4.0 * r.y, 0.0, 0.0);\n"
+    "}\n"
+    "void easuTap(inout vec3 aC, inout float aW, vec2 off, vec2 dir, vec2 len,\n"
+    "             float lob, float clp, vec3 c) {\n"
+    "  vec2 v;\n"
+    "  v.x = (off.x * dir.x) + (off.y * dir.y);\n"
+    "  v.y = (off.x * -dir.y) + (off.y * dir.x);\n"
+    "  v *= len;\n"
+    "  float d2 = v.x * v.x + v.y * v.y;\n"
+    "  d2 = min(d2, clp);\n"
+    "  float wB = (2.0 / 5.0) * d2 - 1.0;\n"
+    "  float wA = lob * d2 - 1.0;\n"
+    "  wB *= wB;\n"
+    "  wA *= wA;\n"
+    "  wB = (25.0 / 16.0) * wB - (25.0 / 16.0 - 1.0);\n"
+    "  float w = wB * wA;\n"
+    "  aC += c * w;\n"
+    "  aW += w;\n"
+    "}\n"
+    "void easuSet(inout vec2 dir, inout float len, vec2 pp,\n"
+    "             bool biS, bool biT, bool biU, bool biV,\n"
+    "             float lA, float lB, float lC, float lD, float lE) {\n"
+    "  float w = 0.0;\n"
+    "  if (biS) w = (1.0 - pp.x) * (1.0 - pp.y);\n"
+    "  if (biT) w = pp.x * (1.0 - pp.y);\n"
+    "  if (biU) w = (1.0 - pp.x) * pp.y;\n"
+    "  if (biV) w = pp.x * pp.y;\n"
+    "  float dc = lD - lC;\n"
+    "  float cb = lC - lB;\n"
+    "  float lenX = max(abs(dc), abs(cb));\n"
+    "  lenX = 1.0 / lenX;\n"
+    "  float dirX = lD - lB;\n"
+    "  dir.x += dirX * w;\n"
+    "  lenX = clamp(abs(dirX) * lenX, 0.0, 1.0);\n"
+    "  lenX *= lenX;\n"
+    "  len += lenX * w;\n"
+    "  float ec = lE - lC;\n"
+    "  float ca = lC - lA;\n"
+    "  float lenY = max(abs(ec), abs(ca));\n"
+    "  lenY = 1.0 / lenY;\n"
+    "  float dirY = lE - lA;\n"
+    "  dir.y += dirY * w;\n"
+    "  lenY = clamp(abs(dirY) * lenY, 0.0, 1.0);\n"
+    "  lenY *= lenY;\n"
+    "  len += lenY * w;\n"
+    "}\n"
+    "void easuF(out vec3 pix, uvec2 ip, vec4 con0, vec4 con1, vec4 con2, vec4 con3) {\n"
+    "  vec2 pp = vec2(ip) * con0.xy + con0.zw;\n"
+    "  vec2 fp = floor(pp);\n"
+    "  pp -= fp;\n"
+    "  vec2 p0 = fp * con1.xy + con1.zw;\n"
+    "  vec2 p1 = p0 + con2.xy;\n"
+    "  vec2 p2 = p0 + con2.zw;\n"
+    "  vec2 p3 = p0 + con3.xy;\n"
+    "  vec4 bczzR = gatherR(p0);\n"
+    "  vec4 bczzG = gatherG(p0);\n"
+    "  vec4 bczzB = gatherB(p0);\n"
+    "  vec4 ijfeR = gatherR(p1);\n"
+    "  vec4 ijfeG = gatherG(p1);\n"
+    "  vec4 ijfeB = gatherB(p1);\n"
+    "  vec4 klhgR = gatherR(p2);\n"
+    "  vec4 klhgG = gatherG(p2);\n"
+    "  vec4 klhgB = gatherB(p2);\n"
+    "  vec4 zzonR = gatherR(p3);\n"
+    "  vec4 zzonG = gatherG(p3);\n"
+    "  vec4 zzonB = gatherB(p3);\n"
+    "  vec4 bczzL = bczzB * 0.5 + (bczzR * 0.5 + bczzG);\n"
+    "  vec4 ijfeL = ijfeB * 0.5 + (ijfeR * 0.5 + ijfeG);\n"
+    "  vec4 klhgL = klhgB * 0.5 + (klhgR * 0.5 + klhgG);\n"
+    "  vec4 zzonL = zzonB * 0.5 + (zzonR * 0.5 + zzonG);\n"
+    "  float bL = bczzL.x;\n"
+    "  float cL = bczzL.y;\n"
+    "  float iL = ijfeL.x;\n"
+    "  float jL = ijfeL.y;\n"
+    "  float fL = ijfeL.z;\n"
+    "  float eL = ijfeL.w;\n"
+    "  float kL = klhgL.x;\n"
+    "  float lL = klhgL.y;\n"
+    "  float hL = klhgL.z;\n"
+    "  float gL = klhgL.w;\n"
+    "  float oL = zzonL.z;\n"
+    "  float nL = zzonL.w;\n"
+    "  vec2 dir = vec2(0.0);\n"
+    "  float len = 0.0;\n"
+    "  easuSet(dir, len, pp, true,  false, false, false, bL, eL, fL, gL, jL);\n"
+    "  easuSet(dir, len, pp, false, true,  false, false, cL, fL, gL, hL, kL);\n"
+    "  easuSet(dir, len, pp, false, false, true,  false, fL, iL, jL, kL, nL);\n"
+    "  easuSet(dir, len, pp, false, false, false, true,  gL, jL, kL, lL, oL);\n"
+    "  vec2 dir2 = dir * dir;\n"
+    "  float dirR = dir2.x + dir2.y;\n"
+    "  bool zro = dirR < (1.0 / 32768.0);\n"
+    "  dirR = 1.0 / sqrt(dirR);\n"
+    "  dirR = zro ? 1.0 : dirR;\n"
+    "  dir.x = zro ? 1.0 : dir.x;\n"
+    "  dir *= dirR;\n"
+    "  len = len * 0.5;\n"
+    "  len *= len;\n"
+    "  float stretch = (dir.x * dir.x + dir.y * dir.y) / max(abs(dir.x), abs(dir.y));\n"
+    "  vec2 len2 = vec2(1.0 + (stretch - 1.0) * len, 1.0 - 0.5 * len);\n"
+    "  float lob = 0.5 + (0.25 - 0.04 - 0.5) * len;\n"
+    "  float clp = 1.0 / lob;\n"
+    "  vec3 min4 = min(min(vec3(ijfeR.z, ijfeG.z, ijfeB.z), vec3(klhgR.w, klhgG.w, klhgB.w)),\n"
+    "                  min(vec3(ijfeR.y, ijfeG.y, ijfeB.y), vec3(klhgR.x, klhgG.x, klhgB.x)));\n"
+    "  vec3 max4 = max(max(vec3(ijfeR.z, ijfeG.z, ijfeB.z), vec3(klhgR.w, klhgG.w, klhgB.w)),\n"
+    "                  max(vec3(ijfeR.y, ijfeG.y, ijfeB.y), vec3(klhgR.x, klhgG.x, klhgB.x)));\n"
+    "  vec3 aC = vec3(0.0);\n"
+    "  float aW = 0.0;\n"
+    "  easuTap(aC, aW, vec2( 0.0, -1.0) - pp, dir, len2, lob, clp, vec3(bczzR.x, bczzG.x, bczzB.x));\n"
+    "  easuTap(aC, aW, vec2( 1.0, -1.0) - pp, dir, len2, lob, clp, vec3(bczzR.y, bczzG.y, bczzB.y));\n"
+    "  easuTap(aC, aW, vec2(-1.0,  1.0) - pp, dir, len2, lob, clp, vec3(ijfeR.x, ijfeG.x, ijfeB.x));\n"
+    "  easuTap(aC, aW, vec2( 0.0,  1.0) - pp, dir, len2, lob, clp, vec3(ijfeR.y, ijfeG.y, ijfeB.y));\n"
+    "  easuTap(aC, aW, vec2( 0.0,  0.0) - pp, dir, len2, lob, clp, vec3(ijfeR.z, ijfeG.z, ijfeB.z));\n"
+    "  easuTap(aC, aW, vec2(-1.0,  0.0) - pp, dir, len2, lob, clp, vec3(ijfeR.w, ijfeG.w, ijfeB.w));\n"
+    "  easuTap(aC, aW, vec2( 1.0,  1.0) - pp, dir, len2, lob, clp, vec3(klhgR.x, klhgG.x, klhgB.x));\n"
+    "  easuTap(aC, aW, vec2( 2.0,  1.0) - pp, dir, len2, lob, clp, vec3(klhgR.y, klhgG.y, klhgB.y));\n"
+    "  easuTap(aC, aW, vec2( 2.0,  0.0) - pp, dir, len2, lob, clp, vec3(klhgR.z, klhgG.z, klhgB.z));\n"
+    "  easuTap(aC, aW, vec2( 1.0,  0.0) - pp, dir, len2, lob, clp, vec3(klhgR.w, klhgG.w, klhgB.w));\n"
+    "  easuTap(aC, aW, vec2( 1.0,  2.0) - pp, dir, len2, lob, clp, vec3(zzonR.z, zzonG.z, zzonB.z));\n"
+    "  easuTap(aC, aW, vec2( 0.0,  2.0) - pp, dir, len2, lob, clp, vec3(zzonR.w, zzonG.w, zzonB.w));\n"
+    "  pix = min(max4, max(min4, aC * (1.0 / aW)));\n"
+    "}\n"
+    "void main() {\n"
+    "  vec4 c0, c1, c2, c3;\n"
+    "  easuCon(c0, c1, c2, c3, pc.extra.xy, pc.extra.xy, pc.extra.zw);\n"
+    "  vec3 c;\n"
+    "  easuF(c, uvec2(gl_FragCoord.xy), c0, c1, c2, c3);\n"
+    "  o = vec4(c, 1.0);\n"
+    "}\n";
+/* FSR 1's RCAS (AMD, MIT; the notice is above): sharpens EASU's image into
+ * its place in the window, through the gamma ramp. pc.extra is
+ * (1/w, 1/h, sharpness, 0), the sharpness FsrRcasCon's stops turned linear
+ * (exp2(-stops); 0.2 here: a mild sharpen). */
+static const char k_fs_fsr_rcas[] =
+    "void main() {\n"
+    "  ivec2 sz = textureSize(u_tex, 0);\n"
+    "  ivec2 sp = clamp(ivec2(v_uv * vec2(sz)), ivec2(0), sz - ivec2(1));\n"
+    "  vec3 b = texelFetch(u_tex, sp + ivec2( 0, -1), 0).rgb;\n"
+    "  vec3 d = texelFetch(u_tex, sp + ivec2(-1,  0), 0).rgb;\n"
+    "  vec3 e = texelFetch(u_tex, sp, 0).rgb;\n"
+    "  vec3 f = texelFetch(u_tex, sp + ivec2( 1,  0), 0).rgb;\n"
+    "  vec3 h = texelFetch(u_tex, sp + ivec2( 0,  1), 0).rgb;\n"
+    "  vec3 mn4 = min(min(b, d), min(f, h));\n"
+    "  vec3 mx4 = max(max(b, d), max(f, h));\n"
+    "  vec2 peakC = vec2(1.0, -4.0);\n"
+    "  vec3 hitMin = min(mn4, e) / (4.0 * mx4);\n"
+    "  vec3 hitMax = (peakC.x - max(mx4, e)) / (4.0 * mn4 + peakC.y);\n"
+    "  vec3 lobeV = max(-hitMin, hitMax);\n"
+    "  float lobe = max(-0.1875, min(max(max(lobeV.r, lobeV.g), lobeV.b), 0.0)) * pc.extra.z;\n"
+    "  float rcpL = 1.0 / (4.0 * lobe + 1.0);\n"
+    "  vec3 c = (lobe * (b + d + h + f) + e) * rcpL;\n"
+    "  o = ramp(c);\n"
+    "}\n";
+
 static VkShaderModule module(HleShaderStage stage, const char *head, const char *body)
 {
     g_autofree char *src = g_strdup_printf("%s%s", head, body);
@@ -444,14 +644,18 @@ static bool init(void)
         f->ramp_stale = true;
     }
     g_ps.vs = module(HLE_SHADER_VERTEX, k_vs, "");
-    static const char *const body[P_COUNT] = { k_fs_bilinear, k_fs_area, k_fs_sgsr, k_fs_fxaa };
+    static const char *const body[P_COUNT] = {
+        k_fs_bilinear, k_fs_area, k_fs_sgsr, k_fs_fsr_rcas, k_fs_fxaa, k_fs_fsr_easu,
+    };
     for (unsigned i = 0; i < P_COUNT; i++) {
         g_ps.fs[i] = module(HLE_SHADER_FRAGMENT, k_fs_head, body[i]);
     }
     g_ps.pipe[P_FXAA] = pipeline(g_ps.fs[P_FXAA], VK_FORMAT_R8G8B8A8_UNORM);
-    hle_log("hakuX-hle-back", "present: ready (shaders: bilinear %d, averaging %d, SGSR %d, FXAA %d)",
+    g_ps.pipe[P_FSR_EASU] = pipeline(g_ps.fs[P_FSR_EASU], VK_FORMAT_R8G8B8A8_UNORM);
+    hle_log("hakuX-hle-back", "present: ready (shaders: bilinear %d, averaging %d, SGSR %d, FXAA %d, FSR 1 %d)",
             g_ps.fs[P_BILINEAR] != VK_NULL_HANDLE, g_ps.fs[P_AREA] != VK_NULL_HANDLE,
-            g_ps.fs[P_SGSR] != VK_NULL_HANDLE, g_ps.pipe[P_FXAA] != VK_NULL_HANDLE);
+            g_ps.fs[P_SGSR] != VK_NULL_HANDLE, g_ps.pipe[P_FXAA] != VK_NULL_HANDLE,
+            g_ps.pipe[P_FSR_EASU] != VK_NULL_HANDLE && g_ps.fs[P_FSR_RCAS] != VK_NULL_HANDLE);
     return g_ps.fs[P_BILINEAR] != VK_NULL_HANDLE;
 }
 
@@ -818,6 +1022,54 @@ static bool fxaa_target(uint32_t w, uint32_t h)
     return true;
 }
 
+/* The FSR 1 image at the frame's place in the window (EASU's output, RCAS's
+ * input); remade when that changes (an aspect or window change). */
+static bool fsr_target(uint32_t w, uint32_t h)
+{
+    if (g_ps.fsr_img && g_ps.fsr_w == w && g_ps.fsr_h == h) {
+        return true;
+    }
+    if (g_ps.fsr_img) {
+        wait_value(g_ps.submitted);
+        T.vkDestroyImageView(g_hvk.dev, g_ps.fsr_view, NULL);
+        T.vkDestroyImage(g_hvk.dev, g_ps.fsr_img, NULL);
+        T.vkFreeMemory(g_hvk.dev, g_ps.fsr_mem, NULL);
+        g_ps.fsr_img = VK_NULL_HANDLE;
+    }
+    VkImageCreateInfo ici = {
+        .sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO, .imageType = VK_IMAGE_TYPE_2D,
+        .format = VK_FORMAT_R8G8B8A8_UNORM, .extent = { w, h, 1 }, .mipLevels = 1, .arrayLayers = 1,
+        .samples = VK_SAMPLE_COUNT_1_BIT, .tiling = VK_IMAGE_TILING_OPTIMAL,
+        .usage = VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT,
+        .initialLayout = VK_IMAGE_LAYOUT_UNDEFINED };
+    if (T.vkCreateImage(g_hvk.dev, &ici, NULL, &g_ps.fsr_img) != VK_SUCCESS) {
+        g_ps.fsr_img = VK_NULL_HANDLE;
+        return false;
+    }
+    VkMemoryRequirements mr;
+    T.vkGetImageMemoryRequirements(g_hvk.dev, g_ps.fsr_img, &mr);
+    int mt = hle_vk_memtype(mr.memoryTypeBits, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, 0);
+    VkMemoryAllocateInfo mai = { .sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO,
+                                 .allocationSize = mr.size, .memoryTypeIndex = (uint32_t)mt };
+    VkImageViewCreateInfo vci = {
+        .sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO, .image = g_ps.fsr_img,
+        .viewType = VK_IMAGE_VIEW_TYPE_2D, .format = VK_FORMAT_R8G8B8A8_UNORM,
+        .subresourceRange = { VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1 } };
+    if (mt < 0 || T.vkAllocateMemory(g_hvk.dev, &mai, NULL, &g_ps.fsr_mem) != VK_SUCCESS ||
+        T.vkBindImageMemory(g_hvk.dev, g_ps.fsr_img, g_ps.fsr_mem, 0) != VK_SUCCESS ||
+        T.vkCreateImageView(g_hvk.dev, &vci, NULL, &g_ps.fsr_view) != VK_SUCCESS) {
+        hle_log("hakuX-hle-back", "present: no %ux%u FSR image: FSR off", w, h);
+        T.vkDestroyImage(g_hvk.dev, g_ps.fsr_img, NULL);
+        g_ps.fsr_img = VK_NULL_HANDLE;
+        g_ps.pipe[P_FSR_EASU] = VK_NULL_HANDLE;
+        return false;
+    }
+    g_ps.fsr_w = w;
+    g_ps.fsr_h = h;
+    g_ps.fsr_serial = 0;
+    return true;
+}
+
 static void barrier(VkCommandBuffer cb, VkImage img, VkImageLayout from, VkImageLayout to,
                     VkPipelineStageFlags2 src, VkAccessFlags2 src_access, VkPipelineStageFlags2 dst,
                     VkAccessFlags2 dst_access)
@@ -883,7 +1135,8 @@ static void log_path(unsigned p, bool fxaa, uint32_t vw, uint32_t vh)
     s_vw = vw;
     s_vh = vh;
     hle_log("hakuX-hle-back", "present: %ux%u%s into %ux%u: %s", s_w, s_h, fxaa ? " after FXAA" : "", vw, vh,
-            p == P_AREA ? "averaged down" : p == P_SGSR ? "scaled up by SGSR" : "bilinear");
+            p == P_AREA ? "averaged down" : p == P_SGSR ? "scaled up by SGSR"
+            : p == P_FSR_RCAS ? "scaled up by FSR 1" : "bilinear");
 }
 
 void hle_present_end(float sx, float sy, bool fxaa, int upscale, bool average, uint64_t key)
@@ -914,6 +1167,15 @@ void hle_present_end(float sx, float sy, bool fxaa, int upscale, bool average, u
     T.vkBeginCommandBuffer(cb, &bi);
     VkImageView src = g_ps.have ? g_ps.f.view : VK_NULL_HANDLE;
     bool fxaa_done = false;
+    /* the frame's pixels per window pixel: over 1 (either axis) averaged
+     * down, under 1 scaled up as chosen; FSR's EASU scales both axes alike,
+     * so a frame stretched to another shape (rx and ry apart) falls back */
+    const float vw = sx * (float)ww, vh = sy * (float)wh;
+    const float rx = vw ? (float)g_ps.f.w / vw : 1.0f, ry = vh ? (float)g_ps.f.h / vh : 1.0f;
+    const bool fsr = g_ps.have && upscale == HLE_UPSCALE_FSR && (rx < 0.99f || ry < 0.99f) &&
+                     fabsf(rx - ry) < 0.2f * fminf(rx, ry) &&
+                     g_ps.pipe[P_FSR_EASU] && g_ps.pipe[P_FSR_RCAS] &&
+                     fsr_target((uint32_t)(vw + 0.5f), (uint32_t)(vh + 0.5f));
     /* The frame's writes need no barrier here: each writer of a display
      * image (the swap's blit, the gamma pass, the overlay) ends with one
      * into SHADER_READ_ONLY over all later commands of the queue, ours too
@@ -921,25 +1183,46 @@ void hle_present_end(float sx, float sy, bool fxaa, int upscale, bool average, u
      * presented). A barrier of our own drained the GPU at every refresh; a
      * wait on the render timeline at the frame's value sent the submit down
      * a slow path on Qualcomm's driver (Halo 2 at 30 fps, Adreno 830). */
-    if (g_ps.have) {
-        if (fxaa && g_ps.pipe[P_FXAA] && fxaa_target(g_ps.f.w, g_ps.f.h)) {
-            if (g_ps.fx_serial != g_ps.serial) {
-                barrier(cb, g_ps.fx_img, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
-                        VK_PIPELINE_STAGE_2_FRAGMENT_SHADER_BIT, 0,
-                        VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT, VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT);
-                rendering(cb, g_ps.fx_view, g_ps.f.w, g_ps.f.h, false);
-                static const float whole[12] = { -1.0f, -1.0f, 1.0f, 1.0f, 0, 0, 0, 0, 1.0f, 0, 0, 1.0f };
-                quad(cb, f, 1, g_ps.pipe[P_FXAA], g_ps.f.view, whole, g_ps.f.w, g_ps.f.h);
-                T.vkCmdEndRendering(cb);
-                barrier(cb, g_ps.fx_img, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
-                        VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT,
-                        VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT, VK_PIPELINE_STAGE_2_FRAGMENT_SHADER_BIT,
-                        VK_ACCESS_2_SHADER_SAMPLED_READ_BIT);
-                g_ps.fx_serial = g_ps.serial;
-            }
-            src = g_ps.fx_view;
-            fxaa_done = true;
+    if (g_ps.have && fxaa && !fsr && g_ps.pipe[P_FXAA] && fxaa_target(g_ps.f.w, g_ps.f.h)) {
+        if (g_ps.fx_serial != g_ps.serial) {
+            barrier(cb, g_ps.fx_img, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
+                    VK_PIPELINE_STAGE_2_FRAGMENT_SHADER_BIT, 0,
+                    VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT, VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT);
+            rendering(cb, g_ps.fx_view, g_ps.f.w, g_ps.f.h, false);
+            static const float whole[12] = { -1.0f, -1.0f, 1.0f, 1.0f, 0, 0, 0, 0, 1.0f, 0, 0, 1.0f };
+            quad(cb, f, 1, g_ps.pipe[P_FXAA], g_ps.f.view, whole, g_ps.f.w, g_ps.f.h);
+            T.vkCmdEndRendering(cb);
+            barrier(cb, g_ps.fx_img, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
+                    VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT,
+                    VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT, VK_PIPELINE_STAGE_2_FRAGMENT_SHADER_BIT,
+                    VK_ACCESS_2_SHADER_SAMPLED_READ_BIT);
+            g_ps.fx_serial = g_ps.serial;
         }
+        src = g_ps.fx_view;
+        fxaa_done = true;
+    }
+    /* FSR 1: EASU renders the frame (FXAA is left out while it runs — RCAS
+     * sharpens) into the image of its place in the window; RCAS below then
+     * draws that into the window. Skipped when the image already holds this
+     * frame (a refresh without a new one). */
+    if (fsr && g_ps.fsr_serial != g_ps.serial) {
+        barrier(cb, g_ps.fsr_img, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
+                VK_PIPELINE_STAGE_2_FRAGMENT_SHADER_BIT, 0,
+                VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT, VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT);
+        rendering(cb, g_ps.fsr_view, g_ps.fsr_w, g_ps.fsr_h, false);
+        const float pc[12] = { -1.0f, -1.0f, 1.0f, 1.0f,
+                               (float)g_ps.f.w, (float)g_ps.f.h, (float)g_ps.fsr_w, (float)g_ps.fsr_h,
+                               1.0f, 0.0f, 0.0f, 1.0f };
+        quad(cb, f, 1, g_ps.pipe[P_FSR_EASU], src, pc, g_ps.fsr_w, g_ps.fsr_h);
+        T.vkCmdEndRendering(cb);
+        barrier(cb, g_ps.fsr_img, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
+                VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT,
+                VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT, VK_PIPELINE_STAGE_2_FRAGMENT_SHADER_BIT,
+                VK_ACCESS_2_SHADER_SAMPLED_READ_BIT);
+        g_ps.fsr_serial = g_ps.serial;
+    }
+    if (fsr) {
+        src = g_ps.fsr_view;
     }
     VkImage dst = g_ps.img[g_ps.idx];
     barrier(cb, dst, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
@@ -947,16 +1230,17 @@ void hle_present_end(float sx, float sy, bool fxaa, int upscale, bool average, u
             VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT);
     rendering(cb, g_ps.view[g_ps.idx], iw, ih, true);
     if (g_ps.have) {
-        /* the frame's pixels per window pixel: over 1 (either axis) averaged
-         * down, under 1 scaled up as chosen */
-        const float vw = sx * (float)ww, vh = sy * (float)wh;
-        const float rx = (float)g_ps.f.w / vw, ry = (float)g_ps.f.h / vh;
         unsigned p = P_BILINEAR;
         float pc[12] = { -sx, -sy, sx, sy, 0.0f, 0.0f, 0.0f, 0.0f, g_ps.rot[0], g_ps.rot[1], g_ps.rot[2], g_ps.rot[3] };
         if ((rx > 1.01f || ry > 1.01f) && average && g_ps.pipe[P_AREA]) {
             p = P_AREA;
             pc[4] = rx;
             pc[5] = ry;
+        } else if (fsr) {
+            p = P_FSR_RCAS;
+            pc[4] = 1.0f / (float)g_ps.fsr_w;
+            pc[5] = 1.0f / (float)g_ps.fsr_h;
+            pc[6] = 0.87f;          /* FsrRcasCon's sharpness, 0.2 stops (exp2(-0.2)) */
         } else if ((rx < 0.99f || ry < 0.99f) && upscale == HLE_UPSCALE_SGSR && g_ps.pipe[P_SGSR]) {
             p = P_SGSR;
             pc[4] = 1.0f / (float)g_ps.f.w;

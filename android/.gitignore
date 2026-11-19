@@ -24,3 +24,6 @@ app/build.gradle.kts.tmp.*
 # The committed CI signing key (public by design; see app/build.gradle.kts)
 !signing/key.properties
 !signing/hailon2.keystore
+
+# Kotlin daemon session files
+.kotlin/

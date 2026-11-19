@@ -436,7 +436,7 @@ class NativeCoreActivity : SDLActivity(), InputManager.InputDeviceListener {
     hideSystemBars()
     val prefs = getSharedPreferences("x1box_prefs", Context.MODE_PRIVATE)
     fpsOn = prefs.getBoolean("show_fps", true)
-    hitchesOn = BuildConfig.DEBUG && prefs.getBoolean(PREF_SHOW_HITCHES, true)
+    hitchesOn = BuildConfig.DEBUG && prefs.getBoolean(PREF_SHOW_HITCHES, false)
     fpsView?.visibility = if (fpsOn) View.VISIBLE else View.GONE
     if (!hitchesOn) hitchView?.visibility = View.GONE
     fpsHandler.removeCallbacks(fpsRunnable)
@@ -1152,6 +1152,7 @@ class NativeCoreActivity : SDLActivity(), InputManager.InputDeviceListener {
     const val PREF_FXAA = "fxaa"
     const val PREF_UPSCALE = "upscale_filter"
     const val UPSCALE_BILINEAR = "bilinear"
+    const val UPSCALE_FSR = "fsr"
     const val UPSCALE_SGSR = "sgsr"
 
     /** fps, average frame time (ms), last frame time (ms), 1 if push-buffer decoding renders. */

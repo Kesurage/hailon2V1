@@ -558,9 +558,17 @@ class OnScreenController @JvmOverloads constructor(
       dx /= m
       dy /= m
     }
-    if (m < STICK_DEAD_ZONE) {
+    if (m <= STICK_DEAD_ZONE) {
       dx = 0f
       dy = 0f
+    } else {
+      // Smoothly from the dead zone's edge (0) to full deflection a little
+      // inside the rim: no jump where the dead zone ends, and a thumb that
+      // lands short of the rim still reaches full tilt.
+      val t = ((m - STICK_DEAD_ZONE) / (STICK_FULL - STICK_DEAD_ZONE)).coerceAtMost(1f)
+      val scale = t / m
+      dx *= scale
+      dy *= scale
     }
     stickPos[i].set(dx, dy)
     listener?.onStickMoved(if (i == 0) Stick.LEFT else Stick.RIGHT, dx, dy)
@@ -816,6 +824,9 @@ class OnScreenController @JvmOverloads constructor(
 
   private companion object {
     const val STICK_DEAD_ZONE = 0.15f
+    /** Where a drag counts as full deflection, of the stick's radius: a thumb
+     * rarely lands exactly on the rim. */
+    const val STICK_FULL = 0.85f
     val ACCENT = 0xFF8BC34A.toInt()
     val DPAD_BUTTONS = listOf(
       ControlPainter.DPAD_UP to Button.DPAD_UP,

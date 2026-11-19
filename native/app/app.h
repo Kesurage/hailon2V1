@@ -26,9 +26,10 @@ void nc_present_set_aspect(int mode);
 void nc_present_set_widescreen(bool on);
 /* FXAA over each frame before it's scaled to the window. */
 void nc_present_set_fxaa(bool on);
-/* A frame smaller than its place in the window: scaled up bilinearly, or by
- * Snapdragon Game Super Resolution (a larger one is always averaged down). */
-enum { NC_UPSCALE_BILINEAR, NC_UPSCALE_SGSR };   /* swapchain.h HLE_UPSCALE_*'s */
+/* A frame smaller than its place in the window: scaled up bilinearly, by
+ * AMD FidelityFX Super Resolution 1, or by Snapdragon Game Super Resolution
+ * (a larger one is always averaged down). */
+enum { NC_UPSCALE_BILINEAR, NC_UPSCALE_FSR, NC_UPSCALE_SGSR };   /* swapchain.h HLE_UPSCALE_*'s */
 void nc_present_set_upscale(int mode);
 /* Frames the title presented per second over the last half second, their
  * average interval, and the last one's (ms). */

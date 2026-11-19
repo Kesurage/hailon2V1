@@ -7,8 +7,9 @@
  *            "loadstate=", "scale=", "video=", "asyncpipe=", "mods=", ...),
  *            and the window's: "aspect=auto|4:3|16:9|stretch" the picture's
  *            shape, "fxaa=0|1" FXAA over each frame and
- *            "upscale=bilinear|sgsr" how a frame smaller than its place on
- *            screen is scaled up; "padinput=sdl" the legacy input (the first
+ *            "upscale=bilinear|fsr|sgsr" how a frame smaller than its place
+ *            on screen is scaled up (fsr: AMD FidelityFX Super Resolution 1,
+ *            EASU then RCAS); "padinput=sdl" the legacy input (the first
  *            SDL gamepad as player 1); "vkdriver=" the custom Vulkan driver
  *            (vkdriver.c)
  *
@@ -572,7 +573,10 @@ EXPORT int SDL_main(int argc, char *argv[])
             nc_present_set_fxaa(atoi(argv[i] + 5) != 0);
         }
         if (!strncmp(argv[i], "upscale=", 8)) {
-            nc_present_set_upscale(!strcmp(argv[i] + 8, "sgsr") ? NC_UPSCALE_SGSR : NC_UPSCALE_BILINEAR);
+            const char *u = argv[i] + 8;
+            nc_present_set_upscale(!strcmp(u, "sgsr") ? NC_UPSCALE_SGSR
+                                    : !strcmp(u, "fsr") ? NC_UPSCALE_FSR
+                                                        : NC_UPSCALE_BILINEAR);
         }
         /* vkdriver=<driver dir>|<library>|<hook library dir>: the custom
          * Vulkan driver chosen in the settings (Turnip), via adrenotools. */
