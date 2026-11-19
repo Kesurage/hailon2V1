@@ -1,5 +1,23 @@
 # Changelog
 
+## v1.7.0
+
+FSR 1 actually running, the look controls visible on the screen, a graphics driver to try for the Helio G100, and the whole picture back.
+
+### FSR 1
+- **FSR 1 now runs** — it never did on a widescreen setup: its apply check demanded both axes scale alike, and an anamorphic frame (640×480 pixels carrying a 16:9 picture, what Halo 2 renders) never passes it, so every frame quietly fell back to bilinear. The check now lets FSR upscale any picture smaller than its place — anamorphic included, which EASU takes per axis — and the log says why on the rare fallback.
+- **FSR 1 is the default upscaling filter** (Settings → Graphics keeps Bilinear, FSR 1 and SGSR): at 1x resolution the frame is always smaller than its place on a phone, FSR's two light passes cost little on the Mali-G57, and the difference beside bilinear's blur is clear.
+
+### Touch controls
+- **The look is visible now** — the swipe-look's stick draws where the finger lands, the same clean ring and knob as the move stick's, instead of an invisible zone.
+- **The anchor chases the finger** past the rim, as mobile shooters' sticks do: a long swipe keeps turning at full tilt without the finger running off the glass; back within the rim it aims as before.
+
+### Display
+- **The whole picture is the default again** (Auto: 16:9 on a widescreen console): nothing cropped, nothing stretched. Halo 2 renders 16:9 at most — on a taller phone panel Fill's crop took the top and bottom of the HUD with it, and the one patch that widens the game's rendering (Halo 2 HD) is an XDelta patch for real consoles, 16:9 at most itself, and its author marks it incompatible with emulators. Fill and Stretch stay one tap away in Settings → Display; on a panel taller than 16:9 one of the three always gives.
+
+### Graphics driver
+- **PanVK for the Helio G100, one tap** — Settings → Graphics → GPU driver → For this phone: FristOneRR's PanVK v3.7.0 (Mesa 27 on Arm's kbase driver, built for Valhall-v9 Mali GPUs — the G100's Mali-G57 MC2 among them, proven on Helio G99/G100 phones), downloaded and put in use from its release. Play a minute with each driver and watch the FPS line; keep the faster one — the system driver is one tap back.
+
 ## v1.6.0
 
 The Halo 2 launcher update: touch controls that work like a mobile game's, Halo 2 at 60 fps out of the box, and a full screen that fills without stretching.

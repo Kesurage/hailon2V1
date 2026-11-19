@@ -1168,12 +1168,14 @@ void hle_present_end(float sx, float sy, bool fxaa, int upscale, bool average, u
     VkImageView src = g_ps.have ? g_ps.f.view : VK_NULL_HANDLE;
     bool fxaa_done = false;
     /* the frame's pixels per window pixel: over 1 (either axis) averaged
-     * down, under 1 scaled up as chosen; FSR's EASU scales both axes alike,
-     * so a frame stretched to another shape (rx and ry apart) falls back */
+     * down, under 1 scaled up as chosen. FSR's EASU takes the source and
+     * the destination sizes per axis (easuCon), so it upscales a frame
+     * whose place is another shape — an anamorphic one (640x480 pixels at
+     * a 16:9 place: rx and ry apart) as well as an even one; a frame
+     * larger than its place on an axis is left to the averaging below */
     const float vw = sx * (float)ww, vh = sy * (float)wh;
     const float rx = vw ? (float)g_ps.f.w / vw : 1.0f, ry = vh ? (float)g_ps.f.h / vh : 1.0f;
-    const bool fsr = g_ps.have && upscale == HLE_UPSCALE_FSR && (rx < 0.99f || ry < 0.99f) &&
-                     fabsf(rx - ry) < 0.2f * fminf(rx, ry) &&
+    const bool fsr = g_ps.have && upscale == HLE_UPSCALE_FSR && rx < 0.99f && ry < 0.99f &&
                      g_ps.pipe[P_FSR_EASU] && g_ps.pipe[P_FSR_RCAS] &&
                      fsr_target((uint32_t)(vw + 0.5f), (uint32_t)(vh + 0.5f));
     if (g_ps.have && upscale == HLE_UPSCALE_FSR && !fsr) {
@@ -1185,8 +1187,7 @@ void hle_present_end(float sx, float sy, bool fxaa, int upscale, bool average, u
             hle_log("hakuX-hle-back", "present: FSR 1 not applied (%s) — bilinear",
                     !(g_ps.pipe[P_FSR_EASU] && g_ps.pipe[P_FSR_RCAS])
                         ? "its shaders or pipelines failed"
-                        : (rx >= 0.99f && ry >= 0.99f) ? "the picture is not smaller than its place"
-                                                       : "the picture is stretched to another shape");
+                        : "the picture is not smaller than its place");
         }
     }
     /* The frame's writes need no barrier here: each writer of a display

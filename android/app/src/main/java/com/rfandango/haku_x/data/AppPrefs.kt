@@ -92,12 +92,14 @@ class AppPrefs(context: Context) {
 
   /**
    * The picture's shape: auto, 4:3, 16:9, stretch or fill (read at game start).
-   * This fork's default is fill: the frame covers the screen, the spill
-   * cropped — edge to edge with no black bars and no stretching (the "auto"
-   * default letterboxed 4:3 frames on a phone's tall screen).
+   * This fork's default is auto: with the console widescreen the whole 16:9
+   * picture, undistorted, nothing of it cropped away (Halo 2's HUD whole).
+   * Fill (the frame covers the screen, the spill cropped) and Stretch stay
+   * one tap away in Settings → Display; the game renders 16:9 at most, so
+   * on a taller phone panel one of the three always gives.
    */
   var aspectRatio: String
-    get() = sp.getString(NativeCoreActivity.PREF_ASPECT, NativeCoreActivity.ASPECT_FILL) ?: NativeCoreActivity.ASPECT_FILL
+    get() = sp.getString(NativeCoreActivity.PREF_ASPECT, NativeCoreActivity.ASPECT_AUTO) ?: NativeCoreActivity.ASPECT_AUTO
     set(value) = sp.edit { putString(NativeCoreActivity.PREF_ASPECT, value) }
 
   /** FXAA over each frame before it's scaled to the screen (read at game start). */
@@ -140,10 +142,15 @@ class AppPrefs(context: Context) {
     get() = sp.getBoolean(NativeCoreActivity.PREF_SWIPE_MENU, true)
     set(value) = sp.edit { putBoolean(NativeCoreActivity.PREF_SWIPE_MENU, value) }
 
-  /** How a picture smaller than the screen is scaled up: bilinear or sgsr (read at game start). */
+  /**
+   * How a picture smaller than its place on the screen is scaled up:
+   * bilinear, sgsr or fsr (read at game start). This fork's default is FSR 1
+   * (AMD's EASU + RCAS): always true at 1x resolution, where it costs one
+   * light pass and shows clearly beside bilinear's blur.
+   */
   var upscaleFilter: String
-    get() = sp.getString(NativeCoreActivity.PREF_UPSCALE, NativeCoreActivity.UPSCALE_BILINEAR)
-      ?: NativeCoreActivity.UPSCALE_BILINEAR
+    get() = sp.getString(NativeCoreActivity.PREF_UPSCALE, NativeCoreActivity.UPSCALE_FSR)
+      ?: NativeCoreActivity.UPSCALE_FSR
     set(value) = sp.edit { putString(NativeCoreActivity.PREF_UPSCALE, value) }
 
   // The console's video settings, as its dashboard keeps them (EEPROM video

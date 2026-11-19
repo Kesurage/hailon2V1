@@ -234,6 +234,13 @@ class OnScreenController @JvmOverloads constructor(
       drawControl(canvas, s)
       canvas.restore()
     }
+    if (!editing && lookPointer != -1 && !minimal) {
+      /* the swipe-look's floating stick, visible where the finger landed:
+       * the same ring and knob as the move stick's, its knob at the
+       * smoothed deflection (drawStick's shape), its ring chasing the
+       * finger past the rim (moveLook) */
+      painter.floatingStick(canvas, lookAnchor.x, lookAnchor.y, lookStickRadius, stickPos[1].x, stickPos[1].y)
+    }
     if (editing) {
       val sel = selected
       if (sel != null) {
@@ -303,6 +310,8 @@ class OnScreenController @JvmOverloads constructor(
     h = 31 * h + dpadBits
     h = 31 * h + if (menuPressed) 1 else 0
     h = 31 * h + if (lookPointer != -1) 1 else 0
+    h = 31 * h + lookAnchor.x.toRawBits() /* the look's ring chases the finger */
+    h = 31 * h + lookAnchor.y.toRawBits()
     for (i in 0..1) {
       h = 31 * h + if (stickPointer[i] != -1) 1 else 0
       h = 31 * h + stickPos[i].x.toRawBits()
@@ -698,13 +707,34 @@ class OnScreenController @JvmOverloads constructor(
     listener?.onStickMoved(if (i == 0) Stick.LEFT else Stick.RIGHT, kx, ky)
   }
 
-  /** The camera from a swipe on the empty right of the screen: the offset from where it landed. */
+  /**
+   * The camera from a swipe on the empty right of the screen, a floating
+   * stick like a mobile game's: the ring appears where the finger lands
+   * (onDraw draws it), the drag from there the deflection. Past the rim the
+   * anchor chases the finger, so a long swipe keeps turning at full tilt
+   * without the finger running off the screen — back within the rim, the
+   * anchor stays and the drag aims as before.
+   */
   private fun moveLook(x: Float, y: Float) {
-    applyStick(1, (x - lookAnchor.x) / lookTravel, (y - lookAnchor.y) / lookTravel)
+    var dx = x - lookAnchor.x
+    var dy = y - lookAnchor.y
+    val travel = lookTravel
+    val m = hypot(dx, dy)
+    if (m > travel && m > 0f) {
+      val pull = 1f - travel / m
+      lookAnchor.x += dx * pull
+      lookAnchor.y += dy * pull
+      dx = x - lookAnchor.x
+      dy = y - lookAnchor.y
+    }
+    applyStick(1, dx / travel, dy / travel)
   }
 
   /** The drag that is the look's full deflection: the sensitivity's own scale. */
   private val lookTravel get() = height * 0.18f
+
+  /** The floating look stick's ring, on the screen's scale. */
+  private val lookStickRadius get() = height * 0.10f
 
   private fun endLook() {
     lookPointer = -1

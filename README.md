@@ -36,6 +36,33 @@ v1.3.0 release, and adds:
   GitHub Release on every `v*` tag. The in-app updater follows this
   repository's releases.
 
+## v1.7.0 — FSR 1 for real, the visible look stick, PanVK for the G100
+
+What 1.6.0's feedback asked for.
+
+- **FSR 1 actually runs** — it never did on a widescreen setup: the apply
+  check demanded both axes scale alike, and Halo 2's anamorphic frame
+  (640×480 pixels carrying 16:9) failed it every frame, silently, back to
+  bilinear. The check now upscales any picture smaller than its place
+  (EASU takes the axes per axis), and FSR 1 is the default upscale filter.
+- **The look controls are visible** — the swipe-look's stick now draws
+  where the finger lands (the same ring and knob as the move stick), and
+  its anchor chases the finger past the rim, as mobile shooters' sticks
+  do: long swipes keep turning without running off the glass.
+- **The whole picture is the default again** — Auto (16:9 on the
+  widescreen console): nothing cropped, nothing stretched, Halo 2's HUD
+  whole. The game renders 16:9 at most; a panel taller than that must
+  letterbox, crop or stretch — Fill (crop) and Stretch stay one tap away
+  in Settings → Display. The one patch that renders wider (Grimdoomer's
+  Halo 2 HD) is an XDelta patch for modded consoles, 16:9 at most, its
+  author marks it incompatible with emulators.
+- **PanVK for the Helio G100, one tap** — Settings → Graphics → GPU driver
+  → For this phone: FristOneRR PanVK v3.7.0 (Mesa 27 on Arm's kbase
+  kernel driver, for Valhall-v9 Mali — the G100's Mali-G57 MC2, proven on
+  Helio G99/G100 phones) downloads and goes in use from its release. Play
+  a minute with each driver, watch the FPS line, keep the faster one; the
+  system driver is one tap back.
+
 ## v1.6.0 — the Halo 2 launcher update
 
 What 1.5.0's feedback asked for: touch controls that behave like a mobile
@@ -77,7 +104,7 @@ being the game, not the emulator.
 ### To do (not in this release)
 
 - Motion-blur-off mod; MSAA as a quality option; per-game FSR sharpness.
-- A panvk driver package for the G57 to try from the settings.
+- A panvk driver package for the G57 — **done in v1.7.0** (For this phone: FristOneRR PanVK v3.7.0).
 
 ## v1.5.0 — what 1.4.0's feedback asked for
 
@@ -112,7 +139,7 @@ being the game, not the emulator.
 - Motion-blur-off and per-game 60 fps mods — **done in v1.6.0** (Halo 2's 60
   fps patch is on from the start, and the library's Halo 2 card switches it).
 - MSAA as a quality option; per-game FSR sharpness.
-- A panvk driver package for the G57 to try from the settings.
+- A panvk driver package for the G57 — **done in v1.7.0** (For this phone: FristOneRR PanVK v3.7.0).
 
 ## v1.4.0 — FSR 1.0, touch sticks, HUD
 

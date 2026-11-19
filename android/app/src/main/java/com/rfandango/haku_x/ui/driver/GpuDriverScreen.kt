@@ -14,6 +14,7 @@ import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Build
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.ListItem
@@ -96,6 +97,22 @@ fun GpuDriverScreen(onBack: () -> Unit, vm: GpuDriverViewModel = viewModel()) {
           )
         }
         HorizontalDivider(Modifier.padding(vertical = 4.dp))
+        // Drivers this phone's GPU can run, one tap to download and use.
+        if (s.known.isNotEmpty()) {
+          Section(stringResource(R.string.gpu_driver_catalog))
+          Hint(stringResource(R.string.gpu_driver_catalog_hint))
+          for (kd in s.known) {
+            ActionItem(
+              title = kd.name,
+              summary = kd.description,
+              icon = Icons.Filled.Build,
+              enabled = enabled,
+            ) {
+              vm.install(kd)
+            }
+          }
+          HorizontalDivider(Modifier.padding(vertical = 4.dp))
+        }
         ActionItem(
           title = stringResource(R.string.gpu_driver_add),
           summary = stringResource(R.string.gpu_driver_add_desc),

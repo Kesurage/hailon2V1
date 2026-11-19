@@ -276,24 +276,30 @@ class ControlPainter(private val context: Context? = null) {
    * controller's cross-grooved cap went: on a glass screen that read as a
    * crosshair, not as a stick.
    */
-  private fun stick(c: Canvas, s: ControlSpec, kx: Float, ky: Float) {
-    val r = s.radius
+  private fun stick(c: Canvas, s: ControlSpec, kx: Float, ky: Float) =
+    drawStick(c, s.cx, s.cy, s.radius, kx, ky)
+
+  /** A stick at a floating place (the swipe-look's anchor): the same ring and knob, drawn there. */
+  fun floatingStick(c: Canvas, cx: Float, cy: Float, r: Float, kx: Float, ky: Float) =
+    drawStick(c, cx, cy, r, kx, ky)
+
+  private fun drawStick(c: Canvas, cx: Float, cy: Float, r: Float, kx: Float, ky: Float) {
     val held = kx != 0f || ky != 0f
     // The base: a faint dark disc so the ring reads on any picture.
     p.shader = null
     p.style = Paint.Style.FILL
     p.color = Color.argb(WELL_FILL, 8, 8, 8)
-    c.drawCircle(s.cx, s.cy, r, p)
+    c.drawCircle(cx, cy, r, p)
     p.style = Paint.Style.STROKE
     p.strokeWidth = maxOf(2f, r * 0.05f)
     p.color = if (held) Color.argb(215, 255, 255, 255) else Color.argb(110, 255, 255, 255)
-    c.drawCircle(s.cx, s.cy, r * 0.96f, p)
+    c.drawCircle(cx, cy, r * 0.96f, p)
 
     // The knob, at the deflection.
     val kr = r * 0.42f
     val travel = r - kr
-    val x = s.cx + kx * travel
-    val y = s.cy + ky * travel
+    val x = cx + kx * travel
+    val y = cy + ky * travel
     p.style = Paint.Style.FILL
     shade(RadialGradient(
       x - kr * 0.3f, y - kr * 0.35f, kr * 1.5f,

@@ -95,46 +95,38 @@ jobs:
           TAG="${GITHUB_REF#refs/tags/}"
           V="${{ env.VERSION }}"
           cat > release-notes.md <<EOF
-          hailon2V1 ${{ env.VERSION }} — the Halo 2 launcher update
+          hailon2V1 ${{ env.VERSION }} — FSR 1 for real, the visible look stick, PanVK for the Helio G100
 
-          Over 1.5.0:
+          Over 1.6.0:
 
-          - Touch controls that work like a mobile game's:
-            - Swipe to look — a drag anywhere on the right of the screen
-              (over no button) aims the camera, as mobile shooters do. The
-              drag starts wherever the finger lands; short drags aim finely,
-              long ones turn fast.
-            - Floating move stick — the left stick appears wherever the left
-              thumb lands, and goes back when the finger lifts.
-            - Look sensitivity of its own (Settings → Controls), with a
-              wider range, a smaller dead zone for fine aim, and smoothing
-              that takes out the touchscreen's jitter.
-            - Touch taken unbatched, with the in-between samples of each
-              move: the camera follows the finger at the panel's own rate.
-            - A mobile skin: the sticks a clean ring with a knob (the Xbox
-              cap's cross grooves gone), the face buttons a proper diamond,
-              the triggers read LT and RT. A saved arrangement from before
-              1.6.0 gives way to the new one — the editor still changes
-              everything (move, size, hide, icons).
-            - The menu's swipe can no longer start on the camera's side of
-              the screen, so a fast aim never opens the menu mid-shot.
-          - Halo 2 at 60 fps out of the box: every Halo 2 release runs with
-            its 60 fps patch on from the start (up to 60 frames a second at
-            the game's normal speed). Switch it, or take 120 fps, in the
-            library's Halo 2 card under Patches — the choice is kept.
-          - The launcher's front: the library opens on a Halo 2 card — Play,
-            the 60 fps patch's switch, and this game's own settings and
-            patches in one place.
-          - Fill the screen by default: the picture covers the whole screen,
-            the spill cropped, undistorted — no black bars, no stretching
-            (Settings → Display → Aspect ratio keeps every mode, including
-            Auto and Stretch).
-          - The console reports itself widescreen by default, so Halo 2
-            renders 16:9 and fills with the least cropped away.
-          - The HUD shows the FPS alone.
+          - FSR 1 actually runs now. It never did on a widescreen setup: the
+            apply check demanded both axes scale alike, and Halo 2's
+            anamorphic frame (640x480 pixels carrying a 16:9 picture) failed
+            it every frame — silently, back to bilinear. The check now lets
+            FSR upscale any picture smaller than its place (EASU takes the
+            axes per axis), and FSR 1 is the default upscaling filter.
+          - The look controls are visible: the swipe-look's stick draws where
+            the finger lands — the same clean ring and knob as the move
+            stick's — and its anchor chases the finger past the rim, as
+            mobile shooters' sticks do. Long swipes keep turning without
+            running off the glass.
+          - The whole picture is the default again (Auto: 16:9 on the
+            widescreen console): nothing cropped, nothing stretched, the HUD
+            whole. Halo 2 renders 16:9 at most; a phone panel taller than
+            16:9 must letterbox, crop or stretch — Fill (crop) and Stretch
+            stay one tap away in Settings -> Display. The one patch that
+            renders wider (Halo 2 HD) is an XDelta patch for modded
+            consoles, 16:9 at most, and its author marks it incompatible
+            with emulators.
+          - PanVK for the Helio G100, one tap: Settings -> Graphics -> GPU
+            driver -> For this phone — FristOneRR PanVK v3.7.0 (Mesa 27 on
+            Arm's kbase driver, for Valhall-v9 Mali: the G100's Mali-G57
+            MC2, proven on Helio G99/G100 phones) downloads and goes in use
+            from its release. Play a minute with each driver, watch the FPS
+            line, keep the faster one; the system driver is one tap back.
 
           hailon2V1-$V-debug.apk installs beside the stock hakuX (its id ends
-          in .debug) and updates over 1.5.0. hailon2V1-$V-release.apk is the
+          in .debug) and updates over 1.6.0. hailon2V1-$V-release.apk is the
           plain release build.
           GPL-3.0+ — source in this repository.
           EOF

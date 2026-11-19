@@ -43,6 +43,82 @@ object GpuDriverHelper {
   /** A Qualcomm GPU (KGSL): the one Turnip runs on. */
   fun isAdreno(): Boolean = File("/dev/kgsl-3d0").exists()
 
+  /** A Mali GPU (Arm's kbase): the one PanVK builds run on. */
+  fun isMali(): Boolean = File("/dev/mali0").exists()
+
+  /**
+   * A driver this phone's GPU can run, offered in the settings for a
+   * one-tap download: its package (the adrenotools format addDriver takes)
+   * from its release, as the device's makers publish it.
+   */
+  data class KnownDriver(
+    val name: String,
+    val description: String,
+    val url: String,
+    /** The package's file name, as it lands in the store. */
+    val file: String,
+  )
+
+  /**
+   * PanVK (Mesa's Mali Vulkan driver, on Arm's own kbase kernel driver) as
+   * FristOneRR builds it for Valhall-v9 Job-Manager GPUs — the Helio
+   * G100's Mali-G57 MC2 among them (the build is proven on Helio G99/G100
+   * phones). MIT, built on Mesa. Not a conformant Vulkan implementation:
+   * try it against the system driver and keep the faster one.
+   */
+  val PANVK_FRISTONERR = KnownDriver(
+    name = "PanVK for Mali (FristOneRR v3.7.0)",
+    description = "Mesa 27 PanVK on Arm kbase, for Mali-G57/G68/G77/G78 (Valhall v9): " +
+      "an open-source Vulkan driver to try against the system one.",
+    url = "https://github.com/FristOneRR/FristOneRR-Panvk-Driver/releases/download/v3.7.0/PanVK-FristOneRR-V.3.7.0.zip",
+    file = "PanVK-FristOneRR-V.3.7.0.zip",
+  )
+
+  /** The drivers this phone's GPU can run, offered for download; empty: none known. */
+  fun knownDrivers(): List<KnownDriver> = when {
+    isMali() -> listOf(PANVK_FRISTONERR)
+    else -> emptyList()
+  }
+
+  /**
+   * A known driver's package downloaded into the store and put in use; the
+   * caller shows its outcome (null: it is in use; else what went wrong).
+   * A package already in the store is used as it is (an update overwrites
+   * it by downloading again after deleting it).
+   */
+  fun installKnownDriver(context: Context, kd: KnownDriver): String? {
+    init(context)
+    val stored = File(driverStorageDir, kd.file)
+    if (!stored.isFile) {
+      try {
+        val tmp = File(driverStorageDir, kd.file + ".part")
+        val c = (java.net.URL(kd.url).openConnection() as java.net.HttpURLConnection).apply {
+          connectTimeout = 15000
+          readTimeout = 60000
+          instanceFollowRedirects = true
+        }
+        if (c.responseCode !in 200..299) {
+          return "HTTP ${c.responseCode}"
+        }
+        c.inputStream.use { input -> FileOutputStream(tmp).use { output -> input.copyTo(output) } }
+        val meta = readMetadata(tmp) ?: run { tmp.delete(); return "not a driver package" }
+        if (meta.libraryName.isNullOrEmpty() || !hasEntry(tmp, meta.libraryName)) {
+          tmp.delete()
+          return "no library in the package"
+        }
+        if (!tmp.renameTo(stored)) {
+          tmp.delete()
+          return "could not keep the package"
+        }
+      } catch (e: Exception) {
+        Log.e(TAG, "Driver download failed", e)
+        stored.delete()
+        return e.message ?: e.javaClass.simpleName
+      }
+    }
+    return if (useDriver(stored)) null else "could not unpack the package"
+  }
+
   /**
    * A Turnip driver is worth recommending: the phone can load one (Qualcomm), it runs on its own
    * driver, and that is older than Vulkan 1.3 (games then run on the core's compatibility path,

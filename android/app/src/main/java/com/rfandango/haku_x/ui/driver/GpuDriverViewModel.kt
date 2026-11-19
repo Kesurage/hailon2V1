@@ -20,6 +20,8 @@ import kotlinx.coroutines.withContext
 class GpuDriverViewModel(app: Application) : AndroidViewModel(app) {
   data class State(
     val drivers: List<DriverMetadata> = emptyList(),
+    /** The drivers this phone's GPU can run, offered for download. */
+    val known: List<GpuDriverHelper.KnownDriver> = emptyList(),
     /** The stored package in use; null: the system driver, or one without its package (orphan). */
     val inUse: String? = null,
     /** The driver in use when its package isn't stored (brought over from the previous release). */
@@ -49,7 +51,7 @@ class GpuDriverViewModel(app: Application) : AndroidViewModel(app) {
       val drivers = GpuDriverHelper.getAvailableDrivers()
       val inUse = drivers.firstOrNull { d -> d.path?.let { GpuDriverHelper.isInUse(File(it)) } == true }?.path
       val active = GpuDriverHelper.getActiveDriver()
-      State(drivers, inUse, if (inUse == null) active else null, loading = false)
+      State(drivers, GpuDriverHelper.knownDrivers(), inUse, if (inUse == null) active else null, loading = false)
     }
     _state.value = s
   }
@@ -87,6 +89,13 @@ class GpuDriverViewModel(app: Application) : AndroidViewModel(app) {
       AddError.API -> str(R.string.gpu_driver_err_api, r.driver?.minApi ?: 0, android.os.Build.VERSION.SDK_INT)
       AddError.UNPACK -> str(R.string.gpu_driver_err_unpack, name)
     }
+  }
+
+  /** A known driver's package downloaded and put in use (its A/B note in the notice). */
+  fun install(kd: GpuDriverHelper.KnownDriver) = change {
+    val failure = withContext(Dispatchers.IO) { GpuDriverHelper.installKnownDriver(getApplication(), kd) }
+    if (failure == null) str(R.string.gpu_driver_installed, kd.name)
+    else str(R.string.gpu_driver_download_failed, kd.name, failure)
   }
 
   fun delete(d: DriverMetadata) = change {
