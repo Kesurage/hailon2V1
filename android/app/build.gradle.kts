@@ -49,7 +49,7 @@ android {
   signingConfigs {
     if (hasReleaseKeystore) {
       create("release") {
-        storeFile = file(keystoreProperties.getProperty("storeFile"))
+        storeFile = rootProject.file(keystoreProperties.getProperty("storeFile"))
         storePassword = keystoreProperties.getProperty("storePassword")
         keyAlias = keystoreProperties.getProperty("keyAlias")
         keyPassword = keystoreProperties.getProperty("keyPassword")
@@ -58,7 +58,7 @@ android {
       // builds (which ship as the debug one, beside the stock hakuX) update
       // one another across CI runs.
       getByName("debug") {
-        storeFile = file(keystoreProperties.getProperty("storeFile"))
+        storeFile = rootProject.file(keystoreProperties.getProperty("storeFile"))
         storePassword = keystoreProperties.getProperty("storePassword")
         keyAlias = keystoreProperties.getProperty("keyAlias")
         keyPassword = keystoreProperties.getProperty("keyPassword")

@@ -12,6 +12,7 @@ import androidx.lifecycle.viewModelScope
 import com.rfandango.haku_x.data.AppPrefs
 import com.rfandango.haku_x.data.DiscInfo
 import com.rfandango.haku_x.data.DiscInfoCache
+import com.rfandango.haku_x.data.FolderProbe
 import com.rfandango.haku_x.data.Game
 import com.rfandango.haku_x.data.GameScanner
 import com.rfandango.haku_x.data.Storage
@@ -47,7 +48,7 @@ data class LibraryState(
   val toRead: Int = 0,
   val read: Int = 0,
   /** The empty library's hint: what the folders hold (null: not probed, or games were found). */
-  val scanProbe: GameScanner.FolderProbe? = null,
+  val scanProbe: FolderProbe? = null,
   /** By title: the disc's own, else the file's name. */
   val games: List<Game> = emptyList(),
   val query: String = "",
