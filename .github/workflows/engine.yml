@@ -48,10 +48,16 @@ jobs:
 
       - name: Build the native core (libhakuxcore.so)
         run: |
+          # CMAKE_CXX_SCAN_FOR_MODULES=OFF: CMake 3.30+ scans sources for
+          # C++20 modules and synthesizes std-module targets against the
+          # HOST's libstdc++ (GCC 15) — which the NDK cross-compile cannot
+          # compile ('stdbit.h' not found). Nothing here uses C++ modules.
           cmake -S native -B build/native/core -G Ninja \
             -DCMAKE_TOOLCHAIN_FILE="$ANDROID_HOME/ndk/$NDK_VERSION/build/cmake/android.toolchain.cmake" \
             -DANDROID_ABI=arm64-v8a -DANDROID_PLATFORM=android-28 \
             -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_CXX_SCAN_FOR_MODULES=OFF \
+            -DCMAKE_CXX_MODULE_STD=OFF \
             -DNC_DEPS="$HOME/nc-deps"
           ninja -C build/native/core hakuxcore
 
