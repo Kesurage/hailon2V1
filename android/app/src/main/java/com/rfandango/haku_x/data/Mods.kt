@@ -218,7 +218,17 @@ class ModChoices(context: Context, private val game: String) {
    * (either way) is kept, like every other mod's.
    */
   fun mod(id: String) = read().optBoolean("$game/mod/$id", defaultOn(id))
-  fun setMod(id: String, on: Boolean) = write("$game/mod/$id", on)
+
+  fun setMod(id: String, on: Boolean) {
+    /* The 60 and 120 fps mods share their patches (each builds on the
+     * other's): both on applies whichever of the second's lines still
+     * match — half of it. Turning one on turns the other off, whatever
+     * screen the switch came from. */
+    if (on && (id == "60fps" || id == "120fps")) {
+      write("$game/mod/${if (id == "60fps") "120fps" else "60fps"}", false)
+    }
+    write("$game/mod/$id", on)
+  }
   fun cheat(name: String) = read().optBoolean("$game/cheat/$name", false)
   fun setCheat(name: String, on: Boolean) = write("$game/cheat/$name", on)
 
