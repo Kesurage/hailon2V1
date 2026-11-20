@@ -96,6 +96,12 @@ class XboxDisc private constructor(private val ch: FileChannel, private val part
   fun titleImage(): Bitmap? =
     (section("\$\$XTIMAGE") ?: section("\$\$XSIMAGE"))?.let(XprImage::decode)
 
+  /** A folder's entries by path from the disc's root ("maps"); null: not there. */
+  fun listDir(path: String): List<Xdvdfs.Entry>? = Xdvdfs.Reader(ch, partition).listDir(path)
+
+  /** A file's bytes by path from the disc's root ("maps/coagulation.map"); null: not there. */
+  fun readFile(path: String): ByteArray? = Xdvdfs.Reader(ch, partition).readFile(path)
+
   /** A section's raw bytes by name: section headers at 0x120, 0x11C of them, 0x38 bytes each. */
   private fun section(name: String): ByteBuffer? {
     val x = xbe ?: return null

@@ -110,6 +110,7 @@
 
   <string name="common_back">Back</string>
   <string name="common_delete">Delete</string>
+  <string name="common_ok">OK</string>
 
   <string name="settings_title">Settings</string>
 
@@ -365,15 +366,26 @@
   <string name="mods_native_camera_desc">Halo 2 renders for the phone\'s whole panel (its anamorphic factor widened to this screen\'s shape), so under the Native aspect the picture fills the screen with no crop and no stretching. Experimental: the HUD is drawn for the wider shape too, and a title update\'s own XBE is not patched — if anything misbehaves, turn it off.</string>
   <string name="mods_section_imported">Imported</string>
   <string name="mods_howto_title">How to mod</string>
-  <string name="mods_howto_maps">Maps and character models live inside the game\'s map files. On a PC, open a map in Assembly (or Entity) from the game\'s ISO — maps\\coagulation.map and the rest — edit what you like (levels, weapons, character models, skins), and save or export the .map. Keep the map\'s own file name (coagulation.map stays coagulation.map), then Import it here: from the game\'s next start it loads in place of the disc\'s. A ZIP of maps works too.</string>
-  <string name="mods_howto_patches">XBE patches: a mod.txt — a name, a description, a [default.xbe] section with 0x-address patch lines (the format is mods/README.md in the app\'s source) — or a ZIP with it and a files/ folder. Assembly\'s .mod project files are for Assembly itself: export the map (or the patch bytes) and bring that.</string>
+  <string name="mods_howto_maps">Maps and character models live inside the game\'s map files (maps\\coagulation.map and the rest on the disc). Bring a modded .map and it replaces the map of its own name; an Assembly patch (.asmp) or an older tool\'s (.patchdat, .ascpatch) is built onto the disc\'s own map right here — no PC needed. Keep the map\'s own file name where the patch\'s file name carries it. A ZIP of any of these works too. The Master Chief Collection\'s maps (the PC collection) are recognized but not convertible yet.</string>
+  <string name="mods_howto_patches">XBE patches: a mod.txt — a name, a description, a [default.xbe] section with 0x-address patch lines (the format is mods/README.md in the app\'s source) — or a ZIP with it and a files/ folder.</string>
   <string name="mods_import">Import a mod</string>
-  <string name="mods_import_desc">A modded Halo cache map (.map — keep the map\'s own file name, and it replaces it on the disc; Assembly and the Xbox map tools write these), a mod.txt of XBE patches, or a ZIP holding either. The mod goes on at once; the game reads it at its next start.</string>
+  <string name="mods_importing">Importing — reading the disc…</string>
+  <string name="mods_import_desc">A modded Halo 2 cache map (.map), an Assembly patch (.asmp, .patchdat, .ascpatch — it is built onto the disc\'s own map here, so the base game\'s disc has to be where the library found it), a mod.txt of XBE patches, or a ZIP holding any of those. The mod goes on at once; the game reads it at its next start.</string>
   <string name="mods_imported">%1$s added and on. It is read the next time the game starts.</string>
+  <string name="mods_import_ok">Imported</string>
+  <string name="mods_import_failed">Not imported</string>
+  <string name="mods_conflict">Two mods on replace the same disc file — the one lower in the list wins:\n%1$s</string>
   <string name="mods_import_err_unreadable">That file could not be read.</string>
-  <string name="mods_import_err_not_mod">That is not a mod: a .map, a mod.txt of patches, or a ZIP holding one of those.</string>
+  <string name="mods_import_err_not_mod">That is not a mod: a .map, a patch (.asmp, .patchdat, .ascpatch), a mod.txt, or a ZIP holding one of those.</string>
   <string name="mods_import_err_not_patch">That text has no patches in it: a [file] section and 0x-address lines, as mods/README.md writes them.</string>
   <string name="mods_import_err_empty">The mod was added but came out empty; it was not kept.</string>
+  <string name="mods_import_err_not_halo2">Not a Halo 2 map — another Halo\'s, or a format the importer does not know.</string>
+  <string name="mods_import_err_mcc">A Master Chief Collection map: the PC collection\'s own format. It is recognized, and converting it to this disc\'s maps comes in a next build.</string>
+  <string name="mods_import_err_vista">Halo 2 Vista, the 2007 PC port — its maps are another engine build than the disc\'s.</string>
+  <string name="mods_import_err_base_map">The map it is for is not on this disc (or its file name does not say which map an old patch is for).</string>
+  <string name="mods_import_err_disc">This game\'s disc could not be read — the importer builds patches onto the disc\'s own maps, so it needs it.</string>
+  <string name="mods_import_err_patch">The patch would not apply onto the disc\'s map; the map is untouched.</string>
+  <string name="mods_import_err_nothing">Nothing in it this game can use.</string>
   <string name="mods_delete">Delete mod</string>
   <string name="mods_delete_text">%1$s will be deleted from this phone.</string>
   <string name="mods_section_cheats">Cheats</string>

@@ -9,11 +9,14 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ListItem
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
@@ -39,7 +42,9 @@ import com.rfandango.haku_x.ui.common.Hint
 import com.rfandango.haku_x.ui.common.Section
 import com.rfandango.haku_x.ui.common.SubScreen
 import com.rfandango.haku_x.ui.common.SwitchItem
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 /**
  * One disc's mods and cheats: the app's own, the phone's (Halo 2's native
@@ -78,18 +83,62 @@ fun ModsScreen(gameKey: String, title: String, onBack: () -> Unit) {
     game.mods.forEach { if (!mods.containsKey(it.id)) mods[it.id] = choices.mod(it.id) }
   }
 
+  var importing by remember { mutableStateOf(false) }
+  var result by remember { mutableStateOf<UserMods.ImportResult?>(null) }
+  /* the files the mods on carry, and where two of them replace the same disc
+   * file (the later one in the list wins, as the core reads them) */
+  var filesOf by remember(gameKey) { mutableStateOf<Map<String, String>>(emptyMap()) }
+  var conflicts by remember(gameKey) { mutableStateOf<List<String>>(emptyList()) }
+  val enabledIds = game.mods.filter { mods[it.id] == true }.map { it.id }.toSet() +
+    (if (isHalo2 && nativeCamera) setOf(ModChoices.NATIVE_CAMERA) else emptySet())
+  LaunchedEffect(gameKey, enabledIds) {
+    withContext(Dispatchers.IO) {
+      val byMod = game.mods.filter { it.id in enabledIds }.associate { mod ->
+        val id = mod.id
+        (id to (if (id.startsWith(UserMods.PREFIX)) UserMods.files(context, gameKey, id)
+        else ModCatalog.extract(context, gameKey, id)))
+      }
+      conflicts = byMod.flatMap { (id, fs) -> fs.map { it.first.lowercase() to id } }
+        .groupBy({ it.first }, { it.second })
+        .filter { it.value.size > 1 }
+        .map { (path, ids) ->
+          "$path (${ids.joinToString { id -> game.mods.first { m -> m.id == id }.name }})"
+        }
+      filesOf = game.mods.filter { it.id.startsWith(UserMods.PREFIX) }.associate { mod ->
+        mod.id to UserMods.files(context, gameKey, mod.id)
+          .joinToString("\n") { (disc, f) -> "${disc.replace('/', '\\')} — ${sizeText(f.length())}" }
+      }
+    }
+  }
+
   val import = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri: Uri? ->
     if (uri == null) return@rememberLauncherForActivityResult
-    val r = UserMods.import(context, gameKey, uri)
-    reload()
-    val msg = when (r.error) {
+    scope.launch {
+      importing = true
+      val r = withContext(Dispatchers.IO) { UserMods.import(context, gameKey, uri) }
+      importing = false
+      if (r.mod != null) reload()
+      result = r
+    }
+  }
+
+  /** What the import came to, in words: the outcome and its specifics. */
+  fun importText(r: UserMods.ImportResult): String {
+    val head = when (r.error) {
       null -> context.getString(R.string.mods_imported, r.mod?.name ?: "")
       UserMods.ImportError.UNREADABLE -> context.getString(R.string.mods_import_err_unreadable)
       UserMods.ImportError.NOT_A_MOD -> context.getString(R.string.mods_import_err_not_mod)
       UserMods.ImportError.NOT_A_PATCH -> context.getString(R.string.mods_import_err_not_patch)
       UserMods.ImportError.EMPTY -> context.getString(R.string.mods_import_err_empty)
+      UserMods.ImportError.NOT_HALO2_MAP -> context.getString(R.string.mods_import_err_not_halo2)
+      UserMods.ImportError.MCC_MAP -> context.getString(R.string.mods_import_err_mcc)
+      UserMods.ImportError.VISTA_MAP -> context.getString(R.string.mods_import_err_vista)
+      UserMods.ImportError.BASE_MAP_MISSING -> context.getString(R.string.mods_import_err_base_map)
+      UserMods.ImportError.DISC_UNREADABLE -> context.getString(R.string.mods_import_err_disc)
+      UserMods.ImportError.PATCH_FAILED -> context.getString(R.string.mods_import_err_patch)
+      UserMods.ImportError.NOTHING_USABLE -> context.getString(R.string.mods_import_err_nothing)
     }
-    scope.launch { snackbar.showSnackbar(msg) }
+    return listOf(head, r.details.orEmpty()).filter { it.isNotEmpty() }.joinToString("\n\n")
   }
 
   SubScreen(title = stringResource(R.string.mods_title), subtitle = title, onBack = onBack, snackbar = snackbar) { padding ->
@@ -134,10 +183,17 @@ fun ModsScreen(gameKey: String, title: String, onBack: () -> Unit) {
       Hint(stringResource(R.string.mods_howto_maps))
       Hint(stringResource(R.string.mods_howto_patches))
       Hint(stringResource(R.string.mods_import_desc))
+      if (conflicts.isNotEmpty()) {
+        Hint(stringResource(R.string.mods_conflict, conflicts.joinToString("\n")))
+      }
       for (mod in imported) {
         UserModRow(
           mod = mod,
           checked = mods[mod.id] == true,
+          summary = listOfNotNull(
+            filesOf[mod.id]?.ifEmpty { null },
+            statusLine(mod.id),
+          ).joinToString("\n").ifEmpty { null },
           onChange = { v ->
             choices.setMod(mod.id, v)
             mods[mod.id] = v
@@ -146,11 +202,11 @@ fun ModsScreen(gameKey: String, title: String, onBack: () -> Unit) {
         )
       }
       ActionItem(
-        title = stringResource(R.string.mods_import),
+        title = stringResource(if (importing) R.string.mods_importing else R.string.mods_import),
         summary = null,
         icon = null,
       ) {
-        import.launch(arrayOf("*/*"))
+        if (!importing) import.launch(arrayOf("*/*"))
       }
       if (game.cheats.isNotEmpty()) {
         Section(stringResource(R.string.mods_section_cheats))
@@ -184,14 +240,36 @@ fun ModsScreen(gameKey: String, title: String, onBack: () -> Unit) {
       onDismiss = { deleting = null },
     )
   }
+
+  result?.let { r ->
+    AlertDialog(
+      onDismissRequest = { result = null },
+      title = { Text(stringResource(if (r.mod != null) R.string.mods_import_ok else R.string.mods_import_failed)) },
+      text = { Text(importText(r)) },
+      confirmButton = {
+        TextButton(onClick = { result = null }) { Text(stringResource(R.string.common_ok)) }
+      },
+    )
+  }
 }
+
+/** A size in people's words (28.4 MB, 412 KB). */
+private fun sizeText(n: Long): String =
+  if (n >= 1024 * 1024) "%.1f MB".format(n / 1024f / 1024f) else "%d KB".format(n / 1024)
 
 /** An imported mod: toggled with its switch, removed with its button. */
 @Composable
-private fun UserModRow(mod: ModInfo, checked: Boolean, onChange: (Boolean) -> Unit, onDelete: () -> Unit) {
+private fun UserModRow(
+  mod: ModInfo,
+  checked: Boolean,
+  summary: String? = null,
+  onChange: (Boolean) -> Unit,
+  onDelete: () -> Unit,
+) {
   ListItem(
     headlineContent = { Text(mod.name) },
-    supportingContent = mod.description.ifEmpty { null }?.let { { Text(it) } },
+    supportingContent = listOf(mod.description, summary.orEmpty()).filter { it.isNotEmpty() }
+      .joinToString("\n").ifEmpty { null }?.let { { Text(it) } },
     trailingContent = {
       Row {
         Switch(checked = checked, onCheckedChange = null)

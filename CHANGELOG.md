@@ -1,5 +1,15 @@
 # Changelog
 
+## v0003A
+
+The mod manager rebuilt: the importer knows what it is holding, builds modders' patches onto the disc's own maps **on the phone** (no PC, no Assembly), and says exactly why when something will not go.
+
+- **Assembly patches, applied on the phone.** A `.asmp` (Assembly's own format) — and the older scene's `.patchdat` (Ascension) and `.ascpatch` (Alteration) — is read, its target map found **on your own disc**, extracted, the patch applied byte for byte (the exact algorithm Assembly uses, ported from its source), and the rebuilt map installed as a mod. Small downloads beat 100 MB maps; the patches you find on the old modding sites now just work. A patch for a map that isn't on the disc, or cut against another build of the game, refuses with the reason — the disc's map is never touched.
+- **The importer reads every .map for what it is**, instead of installing whatever arrived: the disc's own Xbox build (9214/9809 — installed, and only where a map of that name really is on the disc), Halo 2 Vista (the 2007 PC port — refused, another engine build), the **Master Chief Collection's** format (recognized, its Saber-zlib compression decoded — the conversion to this disc's format is the next build; the research that makes it possible is in the repository, docs/mcc-map-research.md: the tag data is the same 32-bit format in both), Halo 1/3 maps (refused), and not-a-map (refused).
+- **ZIP imports grown to match**: every .map and patch in a package is classified and handled on its own; one mod comes out of it, with the leftovers listed in its description. A mod.txt tree still imports as before.
+- **The Mods screen says more**: each imported mod lists the disc files it replaces with their sizes; when two mods that are both on replace the same disc file, a line says so (the lower one in the list wins, as the game reads them); the import runs on its own thread with a proper result dialog instead of a one-line toast; and each import's outcome — installed, or refused with its reason and specifics — is spelled out.
+- **How to mod** rewritten for the phone: no PC in the recipe anymore.
+
 ## v0002F
 
 Smooth motion, 0002D's touch back, the presenter as it was on PanVK, and mods that say what they did.
