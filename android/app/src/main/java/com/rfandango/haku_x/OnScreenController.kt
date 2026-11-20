@@ -1221,8 +1221,14 @@ class OnScreenController @JvmOverloads constructor(
 
   private companion object {
     val ACCENT = 0xFF8BC34A.toInt()
-    /** The look's smoothing: this much of the way to each new deflection. */
-    const val LOOK_SMOOTH = 0.5f
+    /**
+     * The look's smoothing: this much of the way to each new deflection.
+     * 0.5 until 0003D let a swipe's deflection arrive two events late on a
+     * 120 Hz panel — the camera trailing the thumb — and reads as clunky;
+     * 0.75 keeps most of the steady hand's glide while the flicks land on
+     * their own event.
+     */
+    const val LOOK_SMOOTH = 0.75f
     /** The game's own stick dead zone (Halo's is ~0.28 of the range): below
      * it a stick does nothing at all — every deflection is lifted over it
      * on its way out (lift). */
@@ -1237,7 +1243,7 @@ class OnScreenController @JvmOverloads constructor(
     /** A finger still this long stops the camera at once (ms) — long enough
      * that a digitizer batching its samples (~every 80 ms on some panels)
      * is not read as a stop between batches. */
-    const val LOOK_IDLE_MS = 80L
+    const val LOOK_IDLE_MS = 60L
     /** The drawn knob's steps over the stick's travel (qStick). */
     const val KNOB_STEPS = 16
     val DPAD_BUTTONS = listOf(
