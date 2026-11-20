@@ -245,7 +245,10 @@ class NativeCoreActivity : SDLActivity(), InputManager.InputDeviceListener {
      * the screen is scaled up (a larger one is averaged down). Frame
      * generation 2x fills the refreshes a game leaves empty with the blend
      * of the frames either side; FSR's RCAS sharpens as chosen. */
-    args += "fxaa=${if (settings.fxaa) 1 else 0}"
+    /* FXAA off at 2x and over on purpose: the render scale already
+     * supersamples the aliasing away, and the pass would shade 4x the
+     * pixels every frame for what it cannot improve (0003C). */
+    args += "fxaa=${if (settings.fxaa && settings.renderScale < 2) 1 else 0}"
     args += "upscale=${settings.upscaleFilter}"
     args += "framegen=${if (settings.frameGeneration) 1 else 0}"
     args += "sharpness=${settings.fsrSharpness}"
@@ -750,6 +753,49 @@ class NativeCoreActivity : SDLActivity(), InputManager.InputDeviceListener {
    * or leave the game. The game stops while it is open; Resume, a tap outside
    * it or back closes it and the game goes on (showMenuDialog).
    */
+  /**
+   * The touch response, tuned while the game runs: two seek bars (the move
+   * stick's and the look's), live — the controller reads the settings on
+   * every touch, so a change is felt on the next drag, no restart, nothing
+   * paused behind the dialog.
+   */
+  private fun showTouchSensitivity() {
+    val prefs = AppPrefs(this)
+    val pad = (resources.displayMetrics.density * 20).toInt()
+    val box = android.widget.LinearLayout(this).apply {
+      orientation = android.widget.LinearLayout.VERTICAL
+      setPadding(pad, pad / 2, pad, 0)
+    }
+    fun bar(label: String, get: () -> Float, set: (Float) -> Unit, min: Float, max: Float) {
+      val value = android.widget.TextView(this)
+      fun show(v: Float) { value.text = "$label  %.2f".format(v) }
+      show(get())
+      val seek = android.widget.SeekBar(this).apply {
+        max = ((max - min) / 0.05f).toInt()
+        progress = ((get() - min) / 0.05f).toInt()
+        setOnSeekBarChangeListener(object : android.widget.SeekBar.OnSeekBarChangeListener {
+          override fun onProgressChanged(b: android.widget.SeekBar?, p: Int, fromUser: Boolean) {
+            if (fromUser) { val v = (min + p * 0.05f).coerceIn(min, max); set(v); show(v) }
+          }
+          override fun onStartTrackingTouch(b: android.widget.SeekBar?) {}
+          override fun onStopTrackingTouch(b: android.widget.SeekBar?) {}
+        })
+      }
+      box.addView(value)
+      box.addView(seek)
+    }
+    bar(getString(R.string.settings_stick_sensitivity_short), { prefs.stickSensitivity },
+      { prefs.stickSensitivity = it }, 0.5f, 3.0f)
+    bar(getString(R.string.settings_look_sensitivity_short), { prefs.lookSensitivity },
+      { prefs.lookSensitivity = it }, 0.3f, 6.0f)
+    showMenuDialog(
+      AlertDialog.Builder(this)
+        .setTitle(R.string.overlay_menu_touch)
+        .setView(box)
+        .setPositiveButton(android.R.string.ok, null)
+    )
+  }
+
   private fun showMenu() {
     if (editorBar != null) return
     val shown = controlsShown ?: !hasGamepad()
@@ -770,6 +816,7 @@ class NativeCoreActivity : SDLActivity(), InputManager.InputDeviceListener {
     if (runCheats.isNotEmpty()) {
       items += getString(R.string.overlay_menu_cheats) to ::showCheats
     }
+    items += getString(R.string.overlay_menu_touch) to ::showTouchSensitivity
     val exit = if (launchedExternally) R.string.overlay_menu_exit_frontend else R.string.overlay_menu_exit
     items += getString(exit) to ::exitGame
     showMenuDialog(

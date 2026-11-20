@@ -5,6 +5,7 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
@@ -15,6 +16,7 @@ import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.ui.unit.dp
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -200,6 +202,23 @@ fun ModsScreen(gameKey: String, title: String, onBack: () -> Unit, onBrowse: (St
           },
           onDelete = { deleting = mod },
         )
+      }
+      if (game.mods.isNotEmpty()) {
+        /* the whole list at once: every mod of this game on, or off */
+        Row(Modifier.fillMaxWidth().padding(horizontal = 8.dp)) {
+          TextButton(onClick = {
+            for (m in game.mods) {
+              choices.setMod(m.id, true)
+              mods[m.id] = true
+            }
+          }) { Text(stringResource(R.string.mods_all_on)) }
+          TextButton(onClick = {
+            for (m in game.mods) {
+              choices.setMod(m.id, false)
+              mods[m.id] = false
+            }
+          }) { Text(stringResource(R.string.mods_all_off)) }
+        }
       }
       ActionItem(
         title = stringResource(if (importing) R.string.mods_importing else R.string.mods_import),

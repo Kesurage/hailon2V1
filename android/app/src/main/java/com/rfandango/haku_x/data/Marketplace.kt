@@ -52,6 +52,8 @@ object Marketplace {
     val adult: Boolean,
     val compat: Compat,
     val compatNote: String?,
+    /** Its preview images, as the source hands them out (banners, screenshots). */
+    val images: List<String> = emptyList(),
   )
 
   /** The sources the browser reads. */
@@ -78,6 +80,19 @@ object Marketplace {
         Compat.PARTIAL to "a Halo cache map — the importer reads which build it is (the collection's are converted, experimental)"
       else -> Compat.UNKNOWN to "what is inside decides"
     }
+  }
+
+  /** GameBanana's preview media: its banners and screenshots, icons left out. */
+  private fun gbImages(r: JSONObject): List<String> {
+    val out = mutableListOf<String>()
+    val imgs = r.optJSONObject("_aPreviewMedia")?.optJSONArray("_aImages") ?: return out
+    for (i in 0 until imgs.length()) {
+      val im = imgs.optJSONObject(i) ?: continue
+      val type = im.optString("_sType")
+      val url = im.optString("_sUrl")
+      if (url.startsWith("http") && type != "icon" && !url.endsWith(".gif")) out += url
+    }
+    return out.distinct().take(6)
   }
 
   /* ---- the catalog ---- */
@@ -120,6 +135,9 @@ object Marketplace {
         files = files, adult = m.optBoolean("adult", false),
         compat = compatOf(m.optString("compat")),
         compatNote = m.optString("compatNote").ifEmpty { null },
+        images = m.optJSONArray("images")?.let { a ->
+          (0 until a.length()).mapNotNull { i -> a.optString(i).ifEmpty { null } }
+        } ?: emptyList(),
       )
     }
     if (out.isEmpty()) throw MarketException("the catalog is empty")
@@ -154,6 +172,7 @@ object Marketplace {
         files = emptyList(),  /* its files come with its profile, when it is opened */
         adult = adult, compat = Compat.UNKNOWN,
         compatNote = "what its files say, when it is opened",
+        images = gbImages(r),
       )
     }
     out
@@ -182,6 +201,7 @@ object Marketplace {
       pageUrl = "https://gamebanana.com/mods/$id", files = files,
       adult = p.optBoolean("_bIsNsfw", false) || cat?.optBoolean("_bIsNsfw", false) == true,
       compat = Compat.UNKNOWN, compatNote = null,
+      images = gbImages(p),
     )
   }
 
@@ -214,6 +234,7 @@ object Marketplace {
         pageUrl = "https://archive.org/details/$id", files = emptyList(),
         adult = false, compat = Compat.UNKNOWN,
         compatNote = "what its files say, when it is opened",
+        images = listOf("https://archive.org/services/img/$id"),
       )
     }
     out
@@ -270,6 +291,7 @@ object Marketplace {
           pageUrl = "https://www.nexusmods.com/$domain/mods/$id", files = emptyList(),
           adult = m.optBoolean("adult_content", false),
           compat = Compat.UNKNOWN, compatNote = "what its files say, when it is opened",
+          images = m.optString("picture_url").ifEmpty { null }?.let { listOf(it) } ?: emptyList(),
         )
       }
       out
@@ -297,6 +319,7 @@ object Marketplace {
       pageUrl = "https://www.nexusmods.com/$domain/mods/$modId",
       files = files, adult = m.optBoolean("contains_adult_content", false),
       compat = Compat.UNKNOWN, compatNote = null,
+      images = m.optString("picture_url").ifEmpty { null }?.let { listOf(it) } ?: emptyList(),
     )
   }
 
@@ -347,6 +370,19 @@ object Marketplace {
   }
 
   /* ---- the plumbing ---- */
+
+  /** An image's bytes (the previews), or null whatever went wrong. */
+  fun fetchBytes(url: String): ByteArray? = try {
+    val conn = open(url, emptyMap())
+    try {
+      if (conn.responseCode != HttpURLConnection.HTTP_OK) null
+      else conn.inputStream.use { it.readBytes() }
+    } finally {
+      conn.disconnect()
+    }
+  } catch (_: Exception) {
+    null
+  }
 
   private fun fetchText(url: String, headers: Map<String, String> = emptyMap()): String? {
     val conn = open(url, headers)

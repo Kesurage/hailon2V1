@@ -95,37 +95,38 @@ jobs:
           TAG="${GITHUB_REF#refs/tags/}"
           V="${{ env.VERSION }}"
           cat > release-notes.md <<EOF
-          hailon2V1 0003B — MCC mods supported (converted on the phone),
-          and a mod browser over the modding sites
+          hailon2V1 0003C — touch tuned live, the browser grown a
+          face, the 2x cost said plainly
 
-          - The converter: a Master Chief Collection Halo 2 map is
-            converted to the disc's own Xbox format right on the phone —
-            its body kept whole behind a disc header, its address base
-            checked against the disc's own map (both maps' tag tables are
-            read; they must agree), its index area moved where the disc's
-            header needs the room, and the result re-parsed before
-            anything installs. Every refusal names its reason.
-            Experimental until the game has vouched for it: a converted
-            mod says so, and turns off like any other.
-          - The mod browser (Mods → Browse mods):
-            - this app's own catalog — 18 verified entries to start,
-              refreshed from the repository between app releases;
-            - GameBanana's open API — the classic Halo 2 section and the
-              collection's, no account needed;
-            - the Internet Archive's search;
-            - Nexus Mods behind your own API key (nexusmods.com, My
-              Account, API keys) — where the collection's whole scene
-              lives, adult content behind a Show adult content toggle,
-              the key kept on the phone.
-            Every entry carries a compatibility line; downloads go
-            through the importer's classification; what lands is an
-            ordinary imported mod.
-          - Steam Workshop needs Steam itself, so it is not had on a
-            phone; none of the supported sources asks for a captcha.
+          - Touch, tuned while you play: the in-game menu (swipe up)
+            has Touch sensitivity — two seek bars (move stick, look),
+            felt on the next drag, nothing restarted. The ranges went
+            up besides: move stick to 3.0, look to 6.0, in the settings
+            and in-game alike.
+          - The mod browser grown a face: a mod opens full-screen —
+            previews across the top (GameBanana's screenshots, Nexus's
+            picture, the Archive's thumbnail), description, and each
+            file with its own compatibility line. A take shows its
+            progress and its result says the pipeline: downloaded ->
+            checked (the importer reads what the file really is) ->
+            installed over the disc and turned on.
+          - The Mods screen has All on / All off under its list, beside
+            each mod's own switch.
+          - 2x resolution, honestly: 2x shades 4x the pixels — that
+            cost is the GPU's own, not a bug. FXAA is skipped on
+            purpose at 2x+ (the scale already smooths the edges; the
+            pass was 4x pixels for nothing), and the settings say the
+            tradeoff: the Speed preset (1x + FSR) is the close-looking
+            fast answer.
+          - Said plainly: Steam Workshop/depots need Steam itself (not
+            had on a phone); sites without public APIs (LoversLab,
+            ModDB) are not in the browser. Nexus (your own key),
+            GameBanana and the Internet Archive are what a phone can
+            honestly reach.
 
-          hailon2V1-$V-debug.apk installs beside the stock hakuX (its id
-          ends in .debug) and updates over 0003A. hailon2V1-$V-release.apk
-          is the plain release build.
+          hailon2V1-$V-debug.apk installs beside the stock hakuX (its
+          id ends in .debug) and updates over 0003B.
+          hailon2V1-$V-release.apk is the plain release build.
           GPL-3.0+ — source in this repository.
           EOF
           {

@@ -1,5 +1,15 @@
 # Changelog
 
+## v0003C
+
+Touch tuned live, the browser grown a face, and the 2x cost said plainly.
+
+- **Touch, tuned while you play**: the in-game menu (swipe up) has Touch sensitivity now — two seek bars, move stick and look, felt on the next drag, nothing restarted. The settings' ranges went up besides: the move stick to 3.0, the look to 6.0 (the settings screen's sliders and the in-game bars are the same settings).
+- **The browser grown a face**: a mod opens full-screen — its previews (GameBanana's banners and screenshots, Nexus's picture, the Archive's thumbnail) scroll across the top, its description, its files each with its own compatibility line and Take. A take now shows its progress (of how many MB) and its result says the whole pipeline: downloaded → checked → installed over the disc and turned on.
+- **Every mod at once**: the Mods screen has All on / All off under its list — the game's whole mod set in two taps, beside each mod's own switch (which was already there).
+- **2x resolution, honestly**: 2x shades 4x the pixels (3x, 9x) — that cost is the GPU's own, not a bug. What this build does about it: FXAA is skipped on purpose at 2x and over (the scale has already smoothed the edges; the pass was shading 4x the pixels for nothing), and the settings say the tradeoff plainly — the Speed preset (1x + FSR) is the close-looking fast answer.
+- Said plainly, again: Steam Workshop/depots need Steam itself (not had on a phone), and the sites without public APIs (LoversLab, ModDB) are not in the browser — Nexus (your own key), GameBanana and the Internet Archive are what a phone can honestly reach, and none needs a captcha.
+
 ## v0003B
 
 MCC mods supported: **a Master Chief Collection map now converts to the disc's own format on the phone**, and the mod browser opens the modding sites to it.

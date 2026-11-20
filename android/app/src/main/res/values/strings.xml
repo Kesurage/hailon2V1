@@ -184,7 +184,7 @@
   <string name="settings_theme_light">Light</string>
   <string name="settings_theme_dark">Dark</string>
   <string name="settings_section_graphics">Graphics</string>
-  <string name="settings_graphics_hint">Speed on a slow GPU: resolution scale 1x (the console\'s own) with FSR 1 upscaling to the screen. Sharper, at a cost: 2x or 3x. The picture always fills the screen at its native resolution.</string>
+  <string name="settings_graphics_hint">Speed on a slow GPU: resolution scale 1x (the console\'s own) with FSR 1 upscaling to the screen — the Speed preset sets just that. Sharper, at a cost: 2x shades 4x the pixels (3x, 9x), which no app can un-cost; if 2x lags, 1x with FSR is the close-looking fast answer. FXAA is skipped on purpose at 2x and over — the scale has already smoothed the edges. The picture always fills the screen at its native resolution.</string>
   <string name="settings_section_logs">Logs</string>
   <string name="settings_export_logs">Export logs</string>
   <string name="settings_export_logs_desc">The logs of this app session and the four before it, as one ZIP in a folder you choose. Attach it when you report a problem.</string>
@@ -412,6 +412,14 @@
   <string name="market_compat_not">Not for this game</string>
   <string name="market_compat_unknown">Reads on arrival</string>
 
+  <string name="overlay_menu_touch">Touch sensitivity</string>
+  <string name="settings_stick_sensitivity_short">Move stick</string>
+  <string name="settings_look_sensitivity_short">Look</string>
+  <string name="market_taken_line">Downloaded → checked → installed over the disc and turned on.</string>
+  <string name="market_take_hint">A take is downloaded, checked (the importer reads what the file really is — the disc\'s own build, the collection\'s, converted here; an old tool\'s patch), then installed and turned on. On the Mods screen it turns on and off like any other.</string>
+  <string name="market_files_on_open">Its files load when it is opened.</string>
+  <string name="mods_all_on">All on</string>
+  <string name="mods_all_off">All off</string>
   <string name="mods_delete">Delete mod</string>
   <string name="mods_delete_text">%1$s will be deleted from this phone.</string>
   <string name="mods_section_cheats">Cheats</string>

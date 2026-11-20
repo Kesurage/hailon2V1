@@ -199,7 +199,7 @@ fun SettingsScreen(
         Slider(
           value = stickSensitivity,
           onValueChange = { stickSensitivity = it; prefs.stickSensitivity = it },
-          valueRange = 0.5f..1.6f,
+          valueRange = 0.5f..3.0f,
         )
         Text(
           stringResource(R.string.settings_look_sensitivity, lookSensitivity),
@@ -208,7 +208,7 @@ fun SettingsScreen(
         Slider(
           value = lookSensitivity,
           onValueChange = { lookSensitivity = it; prefs.lookSensitivity = it },
-          valueRange = 0.3f..3.0f,
+          valueRange = 0.3f..6.0f,
         )
         Text(
           stringResource(R.string.settings_stick_dead_zone, (stickDeadZone * 100).roundToInt()),
