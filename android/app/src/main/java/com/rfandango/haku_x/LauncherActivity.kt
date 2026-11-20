@@ -110,7 +110,13 @@ class LauncherActivity : ComponentActivity() {
     window.setBackgroundDrawable(ColorDrawable(if (dark) DARK_WINDOW else Color.WHITE))
   }
 
-  /** The core runs in its own process; this one is done until the next launch. */
+  /**
+   * The core runs in its own process; this one is done until the next
+   * launch. When the run before this same disc did not end cleanly — a
+   * crash, a kill, a force stop — the offer comes first: mods are built
+   * into a game at its start, and one that breaks the game has no way back
+   * but a clean boot (0003D's safe mode).
+   */
   private fun startCore(
     uri: Uri,
     relativePath: String?,
@@ -118,11 +124,46 @@ class LauncherActivity : ComponentActivity() {
     launchedExternally: Boolean,
     state: String? = null,
   ) {
+    if (runEndedCleanly(uri)) {
+      startCoreCore(uri, relativePath, title, launchedExternally, state, noMods = false)
+      return
+    }
+    Log.i(TAG, "launch: the run before this disc did not end cleanly — offering the no-mods start")
+    android.app.AlertDialog.Builder(this)
+      .setTitle(R.string.safe_mode_title)
+      .setMessage(getString(R.string.safe_mode_body, title ?: getString(R.string.safe_mode_this_game)))
+      .setPositiveButton(R.string.safe_mode_no_mods) { _, _ ->
+        startCoreCore(uri, relativePath, title, launchedExternally, state, noMods = true)
+      }
+      .setNegativeButton(R.string.safe_mode_normal) { _, _ ->
+        startCoreCore(uri, relativePath, title, launchedExternally, state, noMods = false)
+      }
+      .setNeutralButton(R.string.safe_mode_cancel, null)
+      .show()
+  }
+
+  /** The run watchdog's marker, as NativeCoreActivity keeps it (by the disc's URI). */
+  private fun runEndedCleanly(uri: Uri): Boolean {
+    val h = java.security.MessageDigest.getInstance("MD5")
+      .digest(uri.toString().toByteArray())
+      .joinToString("") { b -> "%02x".format(b) }
+    return !java.io.File(java.io.File(filesDir, "native/runs"), h).exists()
+  }
+
+  private fun startCoreCore(
+    uri: Uri,
+    relativePath: String?,
+    title: String?,
+    launchedExternally: Boolean,
+    state: String?,
+    noMods: Boolean,
+  ) {
     AppPrefs(this).rememberLaunch(uri, relativePath, title)
     startActivity(Intent(this, NativeCoreActivity::class.java).apply {
       putExtra(NativeCoreActivity.EXTRA_DVD_URI, uri.toString())
       putExtra(EXTRA_LAUNCHED_EXTERNALLY, launchedExternally)
       if (state != null) putExtra(NativeCoreActivity.EXTRA_LOADSTATE, state)
+      if (noMods) putExtra(NativeCoreActivity.EXTRA_NO_MODS, true)
       /* a frontend's: the game alone in the app's task (a library left in it
        * goes), so that what's under it when it closes is the frontend */
       if (launchedExternally) addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK)

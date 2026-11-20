@@ -54,6 +54,8 @@ object Marketplace {
     val compatNote: String?,
     /** Its preview images, as the source hands them out (banners, screenshots). */
     val images: List<String> = emptyList(),
+    /** The list row's small one, when the source has any. */
+    val thumb: String? = null,
   )
 
   /** The sources the browser reads. */
@@ -82,17 +84,32 @@ object Marketplace {
     }
   }
 
-  /** GameBanana's preview media: its banners and screenshots, icons left out. */
+  /**
+   * GameBanana's preview media, its URL shape as it really is: each image
+   * carries the CDN base (_sBaseUrl) and the same picture at several widths
+   * (_sFile530 for the detail, _sFile220 for the row, _sFile the whole
+   * thing) — apiv11's records hold no _sUrl, only these (0003D: the 0003C
+   * browser read a field that never comes, and no preview ever loaded).
+   */
   private fun gbImages(r: JSONObject): List<String> {
+    val imgs = r.optJSONObject("_aPreviewMedia")?.optJSONArray("_aImages") ?: return emptyList()
     val out = mutableListOf<String>()
-    val imgs = r.optJSONObject("_aPreviewMedia")?.optJSONArray("_aImages") ?: return out
     for (i in 0 until imgs.length()) {
       val im = imgs.optJSONObject(i) ?: continue
-      val type = im.optString("_sType")
-      val url = im.optString("_sUrl")
-      if (url.startsWith("http") && type != "icon" && !url.endsWith(".gif")) out += url
+      val base = im.optString("_sBaseUrl")
+      if (!base.startsWith("http")) continue
+      val sized = im.optString("_sFile530").ifEmpty { im.optString("_sFile220") }.ifEmpty { im.optString("_sFile") }
+      if (sized.isNotEmpty()) out += "$base/$sized"
     }
     return out.distinct().take(6)
+  }
+
+  /** The row's thumbnail: the first preview at the row's own width. */
+  private fun gbThumb(r: JSONObject): String? {
+    val im = r.optJSONObject("_aPreviewMedia")?.optJSONArray("_aImages")?.optJSONObject(0) ?: return null
+    val base = im.optString("_sBaseUrl")
+    val sized = im.optString("_sFile220").ifEmpty { im.optString("_sFile530") }.ifEmpty { im.optString("_sFile") }
+    return if (base.startsWith("http") && sized.isNotEmpty()) "$base/$sized" else null
   }
 
   /* ---- the catalog ---- */
@@ -102,7 +119,7 @@ object Marketplace {
   suspend fun catalog(context: Context): List<MarketMod> = withContext(Dispatchers.IO) {
     val bundled = context.assets.open("market/catalog.json").bufferedReader().use { it.readText() }
     val fresh = try {
-      fetchText(REPO_CATALOG)?.takeIf { it.length > 10 }
+      runCatching { fetchText(REPO_CATALOG) }.getOrNull()?.takeIf { it.length > 10 }
     } catch (_: Exception) {
       null
     }
@@ -138,6 +155,7 @@ object Marketplace {
         images = m.optJSONArray("images")?.let { a ->
           (0 until a.length()).mapNotNull { i -> a.optString(i).ifEmpty { null } }
         } ?: emptyList(),
+        thumb = m.optString("thumb").ifEmpty { null },
       )
     }
     if (out.isEmpty()) throw MarketException("the catalog is empty")
@@ -153,7 +171,8 @@ object Marketplace {
   suspend fun gamebanana(mcc: Boolean, page: Int): List<MarketMod> = withContext(Dispatchers.IO) {
     val game = if (mcc) GB_MCC else GB_H2
     val text = fetchText(
-      "https://gamebanana.com/apiv11/Mod/Index?_aFilters%5BGeneric_Game%5D=$game&_nPage=${page + 1}&_nPerpage=50&_csvFields=_sName,_aSubmitter,_sText,_tsDateAdded,_bIsNsfw")
+      "https://gamebanana.com/apiv11/Mod/Index?_aFilters%5BGeneric_Game%5D=$game&_nPage=${page + 1}&_nPerpage=50" +
+        "&_csvFields=_sName,_aSubmitter,_sText,_tsDateAdded,_bIsNsfw,_aPreviewMedia")
       ?: throw MarketException("GameBanana did not answer")
     val arr = JSONObject(text).optJSONArray("_aRecords")
       ?: throw MarketException("GameBanana's answer was not a list")
@@ -172,7 +191,7 @@ object Marketplace {
         files = emptyList(),  /* its files come with its profile, when it is opened */
         adult = adult, compat = Compat.UNKNOWN,
         compatNote = "what its files say, when it is opened",
-        images = gbImages(r),
+        images = gbImages(r), thumb = gbThumb(r),
       )
     }
     out
@@ -201,7 +220,7 @@ object Marketplace {
       pageUrl = "https://gamebanana.com/mods/$id", files = files,
       adult = p.optBoolean("_bIsNsfw", false) || cat?.optBoolean("_bIsNsfw", false) == true,
       compat = Compat.UNKNOWN, compatNote = null,
-      images = gbImages(p),
+      images = gbImages(p), thumb = gbThumb(p),
     )
   }
 
@@ -235,6 +254,7 @@ object Marketplace {
         adult = false, compat = Compat.UNKNOWN,
         compatNote = "what its files say, when it is opened",
         images = listOf("https://archive.org/services/img/$id"),
+        thumb = "https://archive.org/services/img/$id",
       )
     }
     out
@@ -292,6 +312,7 @@ object Marketplace {
           adult = m.optBoolean("adult_content", false),
           compat = Compat.UNKNOWN, compatNote = "what its files say, when it is opened",
           images = m.optString("picture_url").ifEmpty { null }?.let { listOf(it) } ?: emptyList(),
+          thumb = m.optString("picture_url").ifEmpty { null },
         )
       }
       out
@@ -320,6 +341,7 @@ object Marketplace {
       files = files, adult = m.optBoolean("contains_adult_content", false),
       compat = Compat.UNKNOWN, compatNote = null,
       images = m.optString("picture_url").ifEmpty { null }?.let { listOf(it) } ?: emptyList(),
+      thumb = m.optString("picture_url").ifEmpty { null },
     )
   }
 
@@ -384,10 +406,26 @@ object Marketplace {
     null
   }
 
+  /**
+   * A source's answer, or null when it said nothing useful — with the words
+   * for what it did say, thrown as a MarketException: a 429 is the source
+   * rate-limiting (the Archive does, hard), a 401/403 is the key's or the
+   * account's own matter, a 404 the thing being gone. Callers that can
+   * carry on (the catalog's refresh) catch and use their fallback.
+   */
   private fun fetchText(url: String, headers: Map<String, String> = emptyMap()): String? {
     val conn = open(url, headers)
     try {
-      if (conn.responseCode != HttpURLConnection.HTTP_OK) return null
+      val code = conn.responseCode
+      if (code != HttpURLConnection.HTTP_OK) {
+        throw when (code) {
+          429 -> MarketException("that source is rate-limiting this network — wait a minute and retry")
+          401, 403 -> MarketException("that source said no to this key/account — check it in the site's own settings")
+          404 -> MarketException("that is gone from the source")
+          in 500..599 -> MarketException("that source is having trouble of its own ($code) — retry in a moment")
+          else -> MarketException("that source answered $code, which was not an answer")
+        }
+      }
       return conn.inputStream.bufferedReader().use { it.readText() }
     } finally {
       conn.disconnect()

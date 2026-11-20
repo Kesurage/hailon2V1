@@ -11,7 +11,7 @@ import java.util.Locale
  * reads too (x1box_prefs: the name predates the native core).
  */
 class AppPrefs(context: Context) {
-  private val sp = context.getSharedPreferences(NAME, Context.MODE_PRIVATE)
+  val sp = context.getSharedPreferences(NAME, Context.MODE_PRIVATE)
 
   init {
     /* One-time, per round the look's response changes: 0002E's cube root
@@ -328,6 +328,22 @@ class AppPrefs(context: Context) {
   val lastGamePath: String? get() = sp.getString(KEY_DVD_PATH, null)
 
   companion object {
+    /* The touch controller's echo (0003D): the same settings, read straight
+     * off the SharedPreferences object the instance holds, so the finger's
+     * path never touches the instance layer. */
+    fun swipeLook(sp: android.content.SharedPreferences) =
+      sp.getBoolean(NativeCoreActivity.PREF_SWIPE_LOOK, true)
+    fun floatingStick(sp: android.content.SharedPreferences) =
+      sp.getBoolean(NativeCoreActivity.PREF_FLOATING_STICK, true)
+    fun swipeMenuOpen(sp: android.content.SharedPreferences) =
+      sp.getBoolean(NativeCoreActivity.PREF_SWIPE_MENU, false)
+    fun stickDeadZone(sp: android.content.SharedPreferences) =
+      sp.getFloat(NativeCoreActivity.PREF_STICK_DEAD_ZONE, 0.15f)
+    fun stickSensitivity(sp: android.content.SharedPreferences) =
+      sp.getFloat(NativeCoreActivity.PREF_STICK_SENSITIVITY, 1.0f)
+    fun lookSensitivity(sp: android.content.SharedPreferences) =
+      sp.getFloat(NativeCoreActivity.PREF_LOOK_SENSITIVITY, 1.35f)
+
     const val NAME = "x1box_prefs"
     private const val KEY_GAMES_FOLDER = "gamesFolderUri"
     private const val KEY_GAMES_FOLDERS = "gamesFolders"

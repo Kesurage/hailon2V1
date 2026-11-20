@@ -90,10 +90,30 @@ class OnScreenController @JvmOverloads constructor(
   private var layout: OverlayLayout? = null
   private var defaults: OverlayLayout? = null
   private val density = resources.displayMetrics.density
-  /** The sticks' response and the menu gesture, as the settings keep them
-   * (read through the process's cached copy: a change applies at the next
-   * game start, like the other settings the core reads). */
+  /**
+   * The sticks' response and the menu gesture, as the settings keep them —
+   * mirrored into plain fields by a preference listener (0003D): the
+   * finger's path read SharedPreferences per event before, and a drag's
+   * worth of reads while the game thread fought for the same lock is
+   * latency you can feel. The settings' own screen and the in-game seek
+   * bars write the same preferences, so a change lands here the instant it
+   * is made.
+   */
   private val prefs = AppPrefs(context)
+  private var swipeLook = prefs.swipeLook
+  private var floatingStick = prefs.floatingStick
+  private var swipeMenuOpen = prefs.swipeMenuOpen
+  private var stickDeadZone = prefs.stickDeadZone
+  private var stickSensitivity = prefs.stickSensitivity
+  private var lookSensitivity = prefs.lookSensitivity
+  private val prefEcho = android.content.SharedPreferences.OnSharedPreferenceChangeListener { sp, _ ->
+    swipeLook = AppPrefs.swipeLook(sp)
+    floatingStick = AppPrefs.floatingStick(sp)
+    swipeMenuOpen = AppPrefs.swipeMenuOpen(sp)
+    stickDeadZone = AppPrefs.stickDeadZone(sp)
+    stickSensitivity = AppPrefs.stickSensitivity(sp)
+    lookSensitivity = AppPrefs.lookSensitivity(sp)
+  }
 
   // ---------------------------------------------------------------- playing
   private val held = HashMap<ControlId, Int>()          /* button controls: the pointer holding each */
@@ -144,7 +164,7 @@ class OnScreenController @JvmOverloads constructor(
    * faint, to move and keep). */
   private fun off(s: ControlSpec) =
     !s.visible || (minimal && (s.id != ControlId.MENU || jewelHidden)) ||
-      (prefs.swipeLook && s.id == ControlId.RIGHT_STICK)
+      (swipeLook && s.id == ControlId.RIGHT_STICK)
 
   private val touchSlop = ViewConfiguration.get(context).scaledTouchSlop.toFloat()
   /* A drag on the right of the screen is the camera (swipe look): the menu
@@ -152,13 +172,13 @@ class OnScreenController @JvmOverloads constructor(
    * no control — never from where the thumbs play (the left stick's half,
    * the look's), or a walk forward would open the menu mid-fight. Off by
    * default since 0002D: the options button opens it. */
-  private fun inLookZone(x: Float) = prefs.swipeLook && x >= width * 0.42f
+  private fun inLookZone(x: Float) = swipeLook && x >= width * 0.42f
   private fun inPlayZone(x: Float, y: Float) =
-    (prefs.swipeLook && x >= width * 0.42f) || (prefs.floatingStick && x < width * 0.42f && y > height * 0.28f)
+    (swipeLook && x >= width * 0.42f) || (floatingStick && x < width * 0.42f && y > height * 0.28f)
   private val swipeUp = SwipeUpGestureRecognizer(
-    minDistancePx = { max(height * 0.14f, touchSlop * 8f) },
+    minDistancePx = { max(height * 0.16f, touchSlop * 8f) },
     touchSlopPx = { touchSlop },
-    canStartAt = { x, y -> y >= height * 0.35f && hit(x, y) == null && !inPlayZone(x, y) },
+    canStartAt = { x, y -> y >= height * 0.58f && hit(x, y) == null && !inPlayZone(x, y) },
     onTriggered = {
       releaseAll()
       onMenuButtonTapped?.invoke()
@@ -204,6 +224,7 @@ class OnScreenController @JvmOverloads constructor(
 
   init {
     setBackgroundColor(Color.TRANSPARENT)
+    prefs.sp.registerOnSharedPreferenceChangeListener(prefEcho)
   }
 
   fun setControllerListener(listener: ControllerListener) {
@@ -466,7 +487,7 @@ class OnScreenController @JvmOverloads constructor(
   // ---------------------------------------------------------------- playing
 
   private fun playTouch(event: MotionEvent) {
-    if (prefs.swipeMenuOpen && (swipeDown.onTouchEvent(event) || swipeUp.onTouchEvent(event))) {
+    if (swipeMenuOpen && (swipeDown.onTouchEvent(event) || swipeUp.onTouchEvent(event))) {
       return
     }
     /* the digitizer's samples unbatched, each its own event: the look and
@@ -554,14 +575,14 @@ class OnScreenController @JvmOverloads constructor(
    */
   private fun grabZone(x: Float, y: Float, pointer: Int) {
     if (minimal) return
-    if (prefs.swipeLook && lookPointer == -1 && stickPointer[1] == -1 && x >= width * 0.42f) {
+    if (swipeLook && lookPointer == -1 && stickPointer[1] == -1 && x >= width * 0.42f) {
       lookPointer = pointer
       lookLast.set(x, y)
       lookVX = 0f
       lookVY = 0f
       return
     }
-    if (prefs.floatingStick && stickPointer[0] == -1 && x < width * 0.42f && y > height * 0.28f) {
+    if (floatingStick && stickPointer[0] == -1 && x < width * 0.42f && y > height * 0.28f) {
       val s = layout?.get(ControlId.LEFT_STICK) ?: return
       if (off(s)) return
       stickPointer[0] = pointer
@@ -713,8 +734,8 @@ class OnScreenController @JvmOverloads constructor(
    */
   private fun applyStick(i: Int, dx: Float, dy: Float) {
     val m = hypot(dx, dy)
-    val dead = if (i == 0) prefs.stickDeadZone else prefs.stickDeadZone * 0.6f
-    val sens = if (i == 0) prefs.stickSensitivity else prefs.lookSensitivity
+    val dead = if (i == 0) stickDeadZone else stickDeadZone * 0.6f
+    val sens = if (i == 0) stickSensitivity else lookSensitivity
     var kx = 0f
     var ky = 0f
     if (m > dead && m > 0f) {
@@ -789,7 +810,7 @@ class OnScreenController @JvmOverloads constructor(
     val dy = (y - lookLast.y) / density
     lookLast.set(x, y)
     lastLookMoveMs = SystemClock.uptimeMillis()
-    val dpFull = LOOK_DRAG_DP / prefs.lookSensitivity
+    val dpFull = LOOK_DRAG_DP / lookSensitivity
     var vx = lookVX + dx / dpFull
     var vy = lookVY + dy / dpFull
     val m = hypot(vx, vy)

@@ -1,5 +1,47 @@
 # Changelog
 
+## v0003D
+
+The browser's pictures actually load (0003C read a field GameBanana never
+sends), the touch path stops touching SharedPreferences on every finger
+event, and a broken mod has a way back.
+
+- **The browser's no-image bug, found and fixed**: GameBanana's records
+  carry previews as a CDN base plus the same picture at several widths
+  (_sBaseUrl + _sFile530) — 0003C read a _sUrl that never comes, so no
+  preview ever loaded. The list request asks for the media now too, rows
+  carry 220px thumbnails, and the bundled catalog's 18 entries have their
+  previews baked in (17 have any on GameBanana). Nexus's picture and the
+  Archive's thumbnail show the same way.
+- **Errors that say what happened, with a way out**: a 429 is the source
+  rate-limiting (the Archive does, hard — not "did not answer"), a 401/403
+  is the key's own matter, a 404 the thing being gone; every load error
+  gets a Retry beside it, and a failed image ends in a quiet placeholder
+  instead of an endless spinner.
+- **The touch path, unblocked**: the finger's events read plain mirrored
+  fields now — 0003C read SharedPreferences per event, fighting the game
+  thread for the same lock (the drag-latency and misfire reports). The
+  settings' screen and the in-game bars write the same preferences, so a
+  change still lands instantly.
+- **The tuning dialog grown a conscience**: each bar says what its number
+  means ("full at N dp" — smaller is touchier), and Reset puts the defaults
+  (1.0 / 1.35) back — 0003C offered a 6.0 look with no words and no way
+  home from a bad value.
+- **The swipe-up menu gesture starts in the bottom strip only** (was: the
+  lower two-thirds — an aim reposition mid-fight could pause the game).
+- **Speed, measured**: the in-game menu's Speed item shows the game's own
+  frame rate as measured (a 5 s average behind it) and offers the honest
+  one-tap answer — 1x + FSR at the next start. When the average stays
+  under 24 fps at 2x or over, one toast per run says so and points there.
+- **The safe mode**: a run that does not end cleanly (a crash, a kill, a
+  force stop — or a mod that broke it) leaves its mark; the next launch of
+  that same disc offers Start without mods — a clean boot, no mods, no
+  cheats, with a word on screen that it is on. The clean exit clears the
+  mark.
+- **The in-game menu lists this run's mods** (each on or off, cheats
+  marked) with the honest note: file mods are built in at boot, so they
+  change from the next start, on the Mods screen.
+
 ## v0003C
 
 Touch tuned live, the browser grown a face, and the 2x cost said plainly.

@@ -63,6 +63,11 @@ class NativeCoreActivity : SDLActivity(), InputManager.InputDeviceListener {
   private var discArg = ""
   private var onScreenController: OnScreenController? = null
   private var fpsView: TextView? = null
+  /* the rolling frame-rate average behind the speed dialog (0003D) */
+  private val fpsRing = FloatArray(10) { 0f }
+  private var fpsRingAt = 0
+  private var runSpeed = 0f
+  private var slowSpoken = false
   private var hitchView: TextView? = null
   /* the settings' overlays, read as the game comes back (onResume) */
   private var fpsOn = false
@@ -86,6 +91,24 @@ class NativeCoreActivity : SDLActivity(), InputManager.InputDeviceListener {
       if (fpsOn && s != null && s.size >= 3) {
         /* the FPS alone: no frame-time clutter over the game */
         fpsView?.text = "FPS: %.0f".format(s[0])
+      }
+      /* the game's own frame rate, watched for the speed dialog's word:
+       * ten samples' average (5 s), and when the scale is 2x or more and
+       * the average stays under SLOW_AT_FPS, one word per run — a toast,
+       * not a dialog: nothing steals the game away mid-fight (0003D) */
+      if (s != null && s.size >= 1 && !activityPaused && menuDialogs == 0) {
+        val fps = s[0]
+        if (fps > 1f) {                    /* a menu's hold is not the game's pace */
+          fpsRing[fpsRingAt] = fps
+          fpsRingAt = (fpsRingAt + 1) % fpsRing.size
+          val avg = fpsRing.filter { it > 0f }.let { l -> if (l.size >= 8) l.average().toFloat() else 0f }
+          runSpeed = avg
+          if (!slowSpoken && avg > 0f && avg < SLOW_AT_FPS &&
+              RunSettings(AppPrefs(this), gameOverrides()).renderScale >= 2) {
+            slowSpoken = true
+            Toast.makeText(this, getString(R.string.overlay_slow_scale, avg.toInt()), Toast.LENGTH_LONG).show()
+          }
+        }
       }
       hitchView?.takeIf { hitchesOn }?.let { v ->
         val hitches = nativeGetHleHitches()
@@ -291,6 +314,10 @@ class NativeCoreActivity : SDLActivity(), InputManager.InputDeviceListener {
     /* The game's mods (their files and XBE patches) and cheats (mods/):
      * the manifest the core reads as the disc opens. */
     modsArg()?.let { args += it }
+    /* the run's watchdog: gone only by the clean exit below — a crash, a
+     * kill, a force stop leaves it, and the next launch of this same disc
+     * offers the no-mods start (a mod can break a game past playing) */
+    if (!dashboard) writeRunWatchdog()
     /* The players with a controller plugged in at boot: player 1 and those a
      * connected controller plays as (later ones: syncPads). */
     plugged = Controllers.load(this).padMask(Controllers.connected())
@@ -317,6 +344,9 @@ class NativeCoreActivity : SDLActivity(), InputManager.InputDeviceListener {
       else -> "started"
     })
     super.onCreate(savedInstanceState)
+    if (intent.getBooleanExtra(EXTRA_NO_MODS, false)) {
+      Toast.makeText(this, R.string.safe_mode_on, Toast.LENGTH_LONG).show()
+    }
     if (AppPrefs(this).networkMode == AppPrefs.NET_LAN) {
       multicastLock = Network.multicastLock(this)
     }
@@ -617,6 +647,10 @@ class NativeCoreActivity : SDLActivity(), InputManager.InputDeviceListener {
   /** "mods=<manifest>" when the disc's title has mods, cheats or the native
    * camera patch (SDL's thread: may extract a mod's files). */
   private fun modsArg(): String? {
+    /* the safe mode (0003D): a run started without mods applies none at
+     * all — a broken mod's way back is a clean boot, and it is offered by
+     * the launcher when the run before did not end cleanly */
+    if (intent.getBooleanExtra(EXTRA_NO_MODS, false)) return null
     if (discUri == null) return null
     val key = gameKey()
     /* a Halo 2 release always writes one: its native camera patch is in it */
@@ -637,6 +671,27 @@ class NativeCoreActivity : SDLActivity(), InputManager.InputDeviceListener {
         }
         "mods=${file.absolutePath}"
       }
+  }
+
+  /** The run's watchdog marker: exists while a game runs, by its disc's URI. */
+  private fun runWatchdogFile(): java.io.File? =
+    discUri?.let { uri ->
+      val h = java.security.MessageDigest.getInstance("MD5")
+        .digest(uri.toString().toByteArray())
+        .joinToString("") { b -> "%02x".format(b) }
+      java.io.File(java.io.File(filesDir, "native/runs"), h)
+    }
+
+  private fun writeRunWatchdog() {
+    runCatching {
+      val f = runWatchdogFile() ?: return
+      f.parentFile?.mkdirs()
+      f.writeText(System.currentTimeMillis().toString())
+    }
+  }
+
+  private fun clearRunWatchdog() {
+    runCatching { runWatchdogFile()?.delete() }
   }
 
   /** The menu's Cheats: each on or off at once (from the next vblank), and so kept for the game. */
@@ -768,9 +823,14 @@ class NativeCoreActivity : SDLActivity(), InputManager.InputDeviceListener {
     }
     /* the range's ends are lo/hi, not min/max: a SeekBar carries its own
      * min and max, and the listener would read those instead */
-    fun bar(label: String, get: () -> Float, set: (Float) -> Unit, lo: Float, hi: Float) {
+    /* what the number means, in dp of flick: the look's full turn, the
+     * stick's full tilt — smaller is touchier, and under ~20 dp a thumb's
+     * jitter is already a spin (0003C shipped the bars with no words and
+     * no way home from a bad value) */
+    fun bar(label: String, get: () -> Float, set: (Float) -> Unit, lo: Float, hi: Float,
+            fullAt: (Float) -> Int) {
       val value = android.widget.TextView(this)
-      fun show(v: Float) { value.text = "$label  %.2f".format(v) }
+      fun show(v: Float) { value.text = "$label  %.2f  (full at ${fullAt(v)} dp)".format(v) }
       show(get())
       val steps = ((hi - lo) / 0.05f).toInt().coerceAtLeast(1)
       val seek = android.widget.SeekBar(this).apply {
@@ -788,14 +848,69 @@ class NativeCoreActivity : SDLActivity(), InputManager.InputDeviceListener {
       box.addView(seek)
     }
     bar(getString(R.string.settings_stick_sensitivity_short), { prefs.stickSensitivity },
-      { prefs.stickSensitivity = it }, 0.5f, 3.0f)
+      { prefs.stickSensitivity = it }, 0.5f, 3.0f) { s -> (STICK_FULL_DP / s).toInt() }
     bar(getString(R.string.settings_look_sensitivity_short), { prefs.lookSensitivity },
-      { prefs.lookSensitivity = it }, 0.3f, 6.0f)
+      { prefs.lookSensitivity = it }, 0.3f, 6.0f) { s -> (LOOK_DRAG_DP / s).toInt() }
     showMenuDialog(
       AlertDialog.Builder(this)
         .setTitle(R.string.overlay_menu_touch)
+        .setMessage(R.string.overlay_menu_touch_hint)
         .setView(box)
         .setPositiveButton(android.R.string.ok, null)
+        .setNeutralButton(R.string.overlay_menu_touch_reset) { _, _ ->
+          prefs.stickSensitivity = 1.0f
+          prefs.lookSensitivity = 1.35f
+        }
+    )
+  }
+
+  /** This run's mods, as the manifest the core booted with carries them. */
+  private fun runMods(): List<String> =
+    if (intent.getBooleanExtra(EXTRA_NO_MODS, false)) emptyList()
+    else runKey.takeIf { it.isNotEmpty() }?.let { key ->
+      val choices = ModChoices(this, key)
+      ModCatalog.load(this, key).mods.filter {
+        choices.mod(it.id) != false   /* on unless turned off */
+      }.map { it.name }
+    } ?: emptyList()
+
+  /**
+   * The menu's Mods: what this run carries, each on or off — a look, not a
+   * switch: file mods are built into the game at its start, and the honest
+   * word says so (the Mods screen is where they change, before the next
+   * start). Cheats stay live-switchable in their own item.
+   */
+  private fun showRunMods() {
+    val lines = (runMods() + runCheats.map { "${it.name} — cheat" }).joinToString("\n")
+    showMenuDialog(
+      AlertDialog.Builder(this)
+        .setTitle(R.string.overlay_menu_mods)
+        .setMessage(lines + "\n\n" + getString(R.string.overlay_menu_mods_note))
+        .setPositiveButton(android.R.string.ok, null)
+    )
+  }
+
+  /**
+   * The game's own measured pace, and the one-tap answer when the chosen
+   * scale is more than the phone can shade: 2x is 4x the pixels and no app
+   * can un-cost that — the Speed choice (1x with FSR 1 upscaling, at the
+   * next start) is the close-looking fast one. The words carry the
+   * measured numbers, not a guess.
+   */
+  private fun showSpeed() {
+    val prefs = AppPrefs(this)
+    val settings = RunSettings(prefs, gameOverrides())
+    showMenuDialog(
+      AlertDialog.Builder(this)
+        .setTitle(R.string.overlay_menu_speed)
+        .setMessage(getString(R.string.overlay_speed_body,
+          if (runSpeed > 0f) runSpeed.toInt() else 0, settings.renderScale))
+        .setPositiveButton(R.string.overlay_speed_faster) { _, _ ->
+          prefs.renderScale = 1
+          prefs.upscaleFilter = UPSCALE_FSR
+          Toast.makeText(this, R.string.overlay_speed_set, Toast.LENGTH_LONG).show()
+        }
+        .setNegativeButton(getString(R.string.overlay_speed_keep, settings.renderScale), null)
     )
   }
 
@@ -820,6 +935,10 @@ class NativeCoreActivity : SDLActivity(), InputManager.InputDeviceListener {
       items += getString(R.string.overlay_menu_cheats) to ::showCheats
     }
     items += getString(R.string.overlay_menu_touch) to ::showTouchSensitivity
+    items += getString(R.string.overlay_menu_speed) to ::showSpeed
+    if (runMods().isNotEmpty() || runCheats.isNotEmpty()) {
+      items += getString(R.string.overlay_menu_mods) to ::showRunMods
+    }
     val exit = if (launchedExternally) R.string.overlay_menu_exit_frontend else R.string.overlay_menu_exit
     items += getString(exit) to ::exitGame
     showMenuDialog(
@@ -949,6 +1068,7 @@ class NativeCoreActivity : SDLActivity(), InputManager.InputDeviceListener {
    * goes with the game.
    */
   private fun exitGame() {
+    clearRunWatchdog()
     if (!launchedExternally) {
       startActivity(
         Intent(this, LauncherActivity::class.java)
@@ -1204,6 +1324,8 @@ class NativeCoreActivity : SDLActivity(), InputManager.InputDeviceListener {
     const val EXTRA_LOADSTATE = "loadstate"
     /** RelaunchActivity: the game started again from the start (no launch data, no savestate). */
     const val EXTRA_RESTART = "restart"
+    /* the safe mode: no mods, no cheats, at the boot (0003D) */
+    const val EXTRA_NO_MODS = "no_mods"
     /** The dashboard's title ID (xboxdash.xbe's certificate): its settings and savestates' key. */
     private const val DASHBOARD_TITLE_ID = 0xFFFE0000L
 
@@ -1218,6 +1340,10 @@ class NativeCoreActivity : SDLActivity(), InputManager.InputDeviceListener {
     private const val PAD_RTHUMB = 0x80
 
     private const val FPS_INTERVAL_MS = 500L
+
+    /* when the rolling average says the game is struggling at the chosen
+     * scale (the menu's Speed item says the rest) */
+    private const val SLOW_AT_FPS = 24f
     /** The FPS and stutter lines' update held back (OverlayPacer): tried again this soon. */
     private const val LINES_RETRY_MS = 50L
     private const val STATE_POLL_MS = 500L
@@ -1248,6 +1374,12 @@ class NativeCoreActivity : SDLActivity(), InputManager.InputDeviceListener {
     const val PREF_SWIPE_LOOK = "swipe_look"
     const val PREF_FLOATING_STICK = "floating_stick"
     const val PREF_SWIPE_MENU = "swipe_menu_open"
+
+    /* the tuning dialog's words: the dp of flick that is a full tilt/turn at
+     * 1.0 (the look's is OnScreenController's own LOOK_DRAG_DP; the stick's
+     * its radius, a thumb's push to its rim) */
+    private const val STICK_FULL_DP = 64f
+    private const val LOOK_DRAG_DP = 115f
     const val PREF_FRAMEGEN = "frame_generation"
     const val PREF_FSR_SHARPNESS = "fsr_sharpness"
 

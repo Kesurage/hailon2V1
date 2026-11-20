@@ -420,6 +420,24 @@
   <string name="market_files_on_open">Its files load when it is opened.</string>
   <string name="mods_all_on">All on</string>
   <string name="mods_all_off">All off</string>
+  <string name="market_retry">Retry</string>
+  <string name="overlay_menu_touch_hint">Felt on the next touch, nothing restarted. Smaller \"full at\" = touchier; if aim runs away, Reset and climb back slowly.</string>
+  <string name="overlay_menu_touch_reset">Reset</string>
+  <string name="overlay_menu_speed">Speed</string>
+  <string name="overlay_speed_body">Running at about %1$d fps at %2$dx. 2x shades 4x the pixels (3x, 9x) — that cost is the GPU\'s own, not a bug. The fast answer looks close: 1x with FSR 1 upscaling to the screen.</string>
+  <string name="overlay_speed_faster">Switch to 1x + FSR</string>
+  <string name="overlay_speed_keep">Keep %1$dx</string>
+  <string name="overlay_speed_set">Set: 1x with FSR upscaling, from the next start.</string>
+  <string name="overlay_slow_scale">Running at about %1$d fps at this scale — the menu (swipe up) has a faster setting under Speed.</string>
+  <string name="overlay_menu_mods">Mods</string>
+  <string name="overlay_menu_mods_note">These came with the game\'s start — a file mod is built in at boot, so it changes only from the next start (the Mods screen, before launching). Cheats switch live in their own item.</string>
+  <string name="safe_mode_title">Start without mods?</string>
+  <string name="safe_mode_this_game">this game</string>
+  <string name="safe_mode_body">The run before %1$s did not end cleanly — a crash, a kill, or a mod that broke it. Mods are built into the game at its start, so a broken one has no way back but a clean boot.</string>
+  <string name="safe_mode_no_mods">Start without mods</string>
+  <string name="safe_mode_normal">Start normally</string>
+  <string name="safe_mode_cancel">Not now</string>
+  <string name="safe_mode_on">Safe mode: running with no mods and no cheats.</string>
   <string name="mods_delete">Delete mod</string>
   <string name="mods_delete_text">%1$s will be deleted from this phone.</string>
   <string name="mods_section_cheats">Cheats</string>

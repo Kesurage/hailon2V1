@@ -2,6 +2,7 @@ package com.rfandango.haku_x.ui.market
 
 import android.graphics.BitmapFactory
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Box
@@ -264,10 +265,20 @@ fun MarketplaceScreen(gameKey: String, title: String, onBack: () -> Unit) {
           Text(stringResource(R.string.market_loading))
         }
       }
-      error?.let { Hint(it) }
+      error?.let { err ->
+        Hint(err)
+        TextButton(onClick = { load(true) }, modifier = Modifier.padding(horizontal = 16.dp)) {
+          Text(stringResource(R.string.market_retry))
+        }
+      }
       LazyColumn(Modifier.weight(1f)) {
         items(mods, key = { it.id }) { mod ->
           ListItem(
+            leadingContent = mod.thumb?.let { thumb ->
+              Box(Modifier.padding(end = 4.dp)) {
+                MarketImage(thumb, Modifier.size(56.dp).clip(RoundedCornerShape(6.dp)))
+              }
+            },
             headlineContent = {
               Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(mod.name, maxLines = 1, overflow = TextOverflow.Ellipsis)
@@ -432,6 +443,7 @@ private fun ModDetail(mod: Marketplace.MarketMod, busyFile: String?,
 @Composable
 private fun MarketImage(url: String, modifier: Modifier = Modifier) {
   var bitmap by remember(url) { mutableStateOf<android.graphics.Bitmap?>(null) }
+  var failed by remember(url) { mutableStateOf(false) }
   LaunchedEffect(url) {
     if (ImageCache.get(url) == null) {
       withContext(Dispatchers.IO) {
@@ -441,16 +453,17 @@ private fun MarketImage(url: String, modifier: Modifier = Modifier) {
       }
     }
     bitmap = ImageCache.get(url)
+    if (bitmap == null) failed = true   /* off, or refused: no endless spinner */
   }
   Box(modifier, contentAlignment = Alignment.Center) {
     val b = bitmap
-    if (b != null) {
-      Image(
+    when {
+      b != null -> Image(
         b.asImageBitmap(), contentDescription = null,
         contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize(),
       )
-    } else {
-      CircularProgressIndicator(Modifier.size(28.dp))
+      !failed -> CircularProgressIndicator(Modifier.size(28.dp))
+      else -> Box(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.surfaceVariant))
     }
   }
 }

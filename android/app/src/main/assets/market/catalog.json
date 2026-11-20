@@ -1,372 +1,455 @@
 {
- "version": 1,
- "mods": [
-  {
-   "id": "gamebanana-689008",
-   "source": "GameBanana",
-   "name": "100% * Save File (Original Xbox)",
-   "author": "MegaMarble",
-   "description": "100% * Save File (Original Xbox)",
-   "page": "https://gamebanana.com/mods/689008",
-   "files": [
+  "version": 1,
+  "mods": [
     {
-     "name": "halo2_100.7z",
-     "size": 938031594,
-     "url": "https://gamebanana.com/dl/1746405"
-    }
-   ],
-   "compat": "not",
-   "adult": false,
-   "game": "Halo 2",
-   "compatNote": "a save game, not a mod"
-  },
-  {
-   "id": "gamebanana-357537",
-   "source": "GameBanana",
-   "name": "Halo 2 Vista Complete Savegame",
-   "author": "-Dat Mental Gamer-",
-   "description": "",
-   "page": "https://gamebanana.com/mods/357537",
-   "files": [
-    {
-     "name": "h2v_complete_savegame.zip",
-     "size": 588514,
-     "url": "https://gamebanana.com/dl/747540"
-    }
-   ],
-   "compat": "not",
-   "adult": false,
-   "game": "Halo 2",
-   "compatNote": "a save game, not a mod"
-  },
-  {
-   "id": "gamebanana-37710",
-   "source": "GameBanana",
-   "name": "Halo 2 on XP",
-   "author": "relwof",
-   "description": "File with needed items to activate Halo2 on XP",
-   "page": "https://gamebanana.com/mods/37710",
-   "files": [
-    {
-     "name": "halo2helper.rar",
-     "size": 2256234,
-     "url": "https://gamebanana.com/dl/3339"
-    }
-   ],
-   "compat": "not",
-   "adult": false,
-   "game": "Halo 2",
-   "compatNote": "a PC tool (running Halo 2 Vista on XP)"
-  },
-  {
-   "id": "gamebanana-143118",
-   "source": "GameBanana",
-   "name": "Glass Horizon",
-   "author": "Ghost981997",
-   "description": "A fight onboard a passenger ship lost to the depths of Space",
-   "page": "https://gamebanana.com/mods/143118",
-   "files": [
-    {
-     "name": "glass_horizon.zip",
-     "size": 17560195,
-     "url": "https://gamebanana.com/dl/318201"
-    }
-   ],
-   "compat": "partial",
-   "adult": false,
-   "game": "Halo 2",
-   "compatNote": "a modded Halo 2 map — which build, the importer reads when it is here"
-  },
-  {
-   "id": "gamebanana-37709",
-   "source": "GameBanana",
-   "name": "Halo 2 Patches & Fixes",
-   "author": "robin",
-   "description": "Some partial nudity included in the production code now removed by the first Halo 2 Vista patch",
-   "page": "https://gamebanana.com/mods/37709",
-   "files": [
-    {
-     "name": "halo2vista_update12.zip",
-     "size": 1798045,
-     "url": "https://gamebanana.com/dl/4461"
-    }
-   ],
-   "compat": "unknown",
-   "adult": false,
-   "game": "Halo 2",
-   "compatNote": "a patch bundle — what is inside decides"
-  },
-  {
-   "id": "gamebanana-742073",
-   "source": "GameBanana",
-   "name": "Halo 2 Anniversary SweetFX Ultra Enhanced Graphics",
-   "author": "GameBizzTV",
-   "description": "Halo 2 Anniversary (Master Chief Collection) SweetFX2.0 Ultra Enhanced Graphics Mod",
-   "page": "https://gamebanana.com/mods/742073",
-   "files": [
-    {
-     "name": "halo_2_anniversary_mcc_ultra_enhanced_sweetfx20.zip",
-     "size": 4394308,
-     "url": "https://gamebanana.com/dl/1893829"
-    }
-   ],
-   "compat": "not",
-   "adult": false,
-   "game": "Halo: The Master Chief Collection",
-   "compatNote": "a SweetFX/Reshade graphics filter — for the PC version"
-  },
-  {
-   "id": "gamebanana-696252",
-   "source": "GameBanana",
-   "name": "Halo 3 Character/Weapon Visual Tweaks Commission",
-   "author": "AtlasGuitar",
-   "description": "",
-   "page": "https://gamebanana.com/mods/696252",
-   "files": [
-    {
-     "name": "h3characterweaponstweaks1.zip",
-     "size": 370503662,
-     "url": "https://gamebanana.com/dl/1760711"
+      "id": "gamebanana-689008",
+      "source": "GameBanana",
+      "name": "100% * Save File (Original Xbox)",
+      "author": "MegaMarble",
+      "description": "100% * Save File (Original Xbox)",
+      "page": "https://gamebanana.com/mods/689008",
+      "files": [
+        {
+          "name": "halo2_100.7z",
+          "size": 938031594,
+          "url": "https://gamebanana.com/dl/1746405"
+        }
+      ],
+      "compat": "not",
+      "adult": false,
+      "game": "Halo 2",
+      "compatNote": "a save game, not a mod",
+      "images": [
+        "https://images.gamebanana.com/img/ss/mods/530-90_6a3d91437d4b7.jpg",
+        "https://images.gamebanana.com/img/ss/mods/6a3d91423f5bc.jpg"
+      ],
+      "thumb": "https://images.gamebanana.com/img/ss/mods/220-90_6a3d91437d4b7.jpg"
     },
     {
-     "name": "h3characterweaponstweaks2.zip",
-     "size": 1451860744,
-     "url": "https://gamebanana.com/dl/1760726"
+      "id": "gamebanana-357537",
+      "source": "GameBanana",
+      "name": "Halo 2 Vista Complete Savegame",
+      "author": "-Dat Mental Gamer-",
+      "description": "",
+      "page": "https://gamebanana.com/mods/357537",
+      "files": [
+        {
+          "name": "h2v_complete_savegame.zip",
+          "size": 588514,
+          "url": "https://gamebanana.com/dl/747540"
+        }
+      ],
+      "compat": "not",
+      "adult": false,
+      "game": "Halo 2",
+      "compatNote": "a save game, not a mod",
+      "images": [
+        "https://images.gamebanana.com/img/ss/mods/530-90_62093e61692a7.jpg",
+        "https://images.gamebanana.com/img/ss/mods/62093e6126900.jpg"
+      ],
+      "thumb": "https://images.gamebanana.com/img/ss/mods/220-90_62093e61692a7.jpg"
     },
     {
-     "name": "h3characterweaponstweaks3.zip",
-     "size": 1250212314,
-     "url": "https://gamebanana.com/dl/1760730"
+      "id": "gamebanana-37710",
+      "source": "GameBanana",
+      "name": "Halo 2 on XP",
+      "author": "relwof",
+      "description": "File with needed items to activate Halo2 on XP",
+      "page": "https://gamebanana.com/mods/37710",
+      "files": [
+        {
+          "name": "halo2helper.rar",
+          "size": 2256234,
+          "url": "https://gamebanana.com/dl/3339"
+        }
+      ],
+      "compat": "not",
+      "adult": false,
+      "game": "Halo 2",
+      "compatNote": "a PC tool (running Halo 2 Vista on XP)",
+      "images": [
+        "https://images.gamebanana.com/img/ss/mods/530-90_50a58acdc53fb.webp"
+      ],
+      "thumb": "https://images.gamebanana.com/img/ss/mods/220-90_50a58acdc53fb.webp"
     },
     {
-     "name": "h3characterweaponstweaks4.zip",
-     "size": 696468983,
-     "url": "https://gamebanana.com/dl/1760741"
-    }
-   ],
-   "compat": "not",
-   "adult": false,
-   "game": "Halo: The Master Chief Collection",
-   "compatNote": "a Halo 3 (MCC) visual mod"
-  },
-  {
-   "id": "gamebanana-544344",
-   "source": "GameBanana",
-   "name": "Halo Intros for MCC",
-   "author": "KilLo445",
-   "description": "",
-   "page": "https://gamebanana.com/mods/544344",
-   "files": [
-    {
-     "name": "mcc-intros.7z",
-     "size": 306599617,
-     "url": "https://gamebanana.com/dl/1286953"
-    }
-   ],
-   "compat": "not",
-   "adult": false,
-   "game": "Halo: The Master Chief Collection",
-   "compatNote": "intro movies for the PC collection"
-  },
-  {
-   "id": "gamebanana-497989",
-   "source": "GameBanana",
-   "name": "Battlefront 2 2005 Background",
-   "author": "-Dat Mental Gamer-",
-   "description": "",
-   "page": "https://gamebanana.com/mods/497989",
-   "files": [
-    {
-     "name": "halomcc_swbf2startmenuoverh2vignette_.zip",
-     "size": 110865061,
-     "url": "https://gamebanana.com/dl/1146582"
-    }
-   ],
-   "compat": "not",
-   "adult": false,
-   "game": "Halo: The Master Chief Collection",
-   "compatNote": "a menu background for the PC collection"
-  },
-  {
-   "id": "gamebanana-497838",
-   "source": "GameBanana",
-   "name": "Matrix Code Background",
-   "author": "-Dat Mental Gamer-",
-   "description": "",
-   "page": "https://gamebanana.com/mods/497838",
-   "files": [
-    {
-     "name": "halomcc_matrixcoderainoverfloodvignette.zip",
-     "size": 62180306,
-     "url": "https://gamebanana.com/dl/1146109"
-    }
-   ],
-   "compat": "not",
-   "adult": false,
-   "game": "Halo: The Master Chief Collection",
-   "compatNote": "a menu background for the PC collection"
-  },
-  {
-   "id": "gamebanana-452565",
-   "source": "GameBanana",
-   "name": "New Cursor",
-   "author": "ANS_685",
-   "description": "",
-   "page": "https://gamebanana.com/mods/452565",
-   "files": [
-    {
-     "name": "cursor_123b6.zip",
-     "size": 13370,
-     "url": "https://gamebanana.com/dl/1009015"
-    }
-   ],
-   "compat": "not",
-   "adult": false,
-   "game": "Halo: The Master Chief Collection",
-   "compatNote": "a menu cursor for the PC collection"
-  },
-  {
-   "id": "gamebanana-440309",
-   "source": "GameBanana",
-   "name": "\"That's just... wrong\" skull in Halo: Reach",
-   "author": "ANS_685",
-   "description": "",
-   "page": "https://gamebanana.com/mods/440309",
-   "files": [
-    {
-     "name": "careerdb.zip",
-     "size": 52131,
-     "url": "https://gamebanana.com/dl/972986"
-    }
-   ],
-   "compat": "not",
-   "adult": false,
-   "game": "Halo: The Master Chief Collection",
-   "compatNote": "a Halo: Reach (MCC) mod"
-  },
-  {
-   "id": "gamebanana-432604",
-   "source": "GameBanana",
-   "name": "Halo 2 Matchmaking Background",
-   "author": "hyperbx",
-   "description": "",
-   "page": "https://gamebanana.com/mods/432604",
-   "files": [
-    {
-     "name": "content_73d16.7z",
-     "size": 55385415,
-     "url": "https://gamebanana.com/dl/950366"
+      "id": "gamebanana-143118",
+      "source": "GameBanana",
+      "name": "Glass Horizon",
+      "author": "Ghost981997",
+      "description": "A fight onboard a passenger ship lost to the depths of Space",
+      "page": "https://gamebanana.com/mods/143118",
+      "files": [
+        {
+          "name": "glass_horizon.zip",
+          "size": 17560195,
+          "url": "https://gamebanana.com/dl/318201"
+        }
+      ],
+      "compat": "partial",
+      "adult": false,
+      "game": "Halo 2",
+      "compatNote": "a modded Halo 2 map — which build, the importer reads when it is here",
+      "images": [
+        "https://images.gamebanana.com/img/ss/mods/530-90_147208a.jpg",
+        "https://images.gamebanana.com/img/ss/mods/147208b.jpg"
+      ],
+      "thumb": "https://images.gamebanana.com/img/ss/mods/220-90_147208a.jpg"
     },
     {
-     "name": "templates.zip",
-     "size": 1846770,
-     "url": "https://gamebanana.com/dl/950365"
-    }
-   ],
-   "compat": "not",
-   "adult": false,
-   "game": "Halo: The Master Chief Collection",
-   "compatNote": "a menu background for the PC collection"
-  },
-  {
-   "id": "gamebanana-430194",
-   "source": "GameBanana",
-   "name": "Noblevision Immersion Reshade [NiR]",
-   "author": "-Dat Mental Gamer-",
-   "description": "",
-   "page": "https://gamebanana.com/mods/430194",
-   "files": [
-    {
-     "name": "halomcc_nirv1.zip",
-     "size": 13041,
-     "url": "https://gamebanana.com/dl/943542"
-    }
-   ],
-   "compat": "not",
-   "adult": false,
-   "game": "Halo: The Master Chief Collection",
-   "compatNote": "a Reshade graphics filter — for the PC version"
-  },
-  {
-   "id": "gamebanana-407113",
-   "source": "GameBanana",
-   "name": "Raygun Weapon Tags (Halo 3)",
-   "author": "Priception",
-   "description": "Raygun Weapon Tags (Halo 3)",
-   "page": "https://gamebanana.com/mods/407113",
-   "files": [
-    {
-     "name": "raygun_weapon_tags_ef446.zip",
-     "size": 13774811,
-     "url": "https://gamebanana.com/dl/877734"
+      "id": "gamebanana-37709",
+      "source": "GameBanana",
+      "name": "Halo 2 Patches & Fixes",
+      "author": "robin",
+      "description": "Some partial nudity included in the production code now removed by the first Halo 2 Vista patch",
+      "page": "https://gamebanana.com/mods/37709",
+      "files": [
+        {
+          "name": "halo2vista_update12.zip",
+          "size": 1798045,
+          "url": "https://gamebanana.com/dl/4461"
+        }
+      ],
+      "compat": "unknown",
+      "adult": false,
+      "game": "Halo 2",
+      "compatNote": "a patch bundle — what is inside decides"
     },
     {
-     "name": "raygun_campagin_maps.zip",
-     "size": 1090503903,
-     "url": "https://gamebanana.com/dl/878141"
-    }
-   ],
-   "compat": "not",
-   "adult": false,
-   "game": "Halo: The Master Chief Collection",
-   "compatNote": "a Halo 3 (MCC) weapon mod"
-  },
-  {
-   "id": "gamebanana-383494",
-   "source": "GameBanana",
-   "name": "AK47 Weapon Tags for Halo 3",
-   "author": "Priception",
-   "description": "Call of Duty: Black Ops II - AK47 imported into Halo 3",
-   "page": "https://gamebanana.com/mods/383494",
-   "files": [
+      "id": "gamebanana-742073",
+      "source": "GameBanana",
+      "name": "Halo 2 Anniversary SweetFX Ultra Enhanced Graphics",
+      "author": "GameBizzTV",
+      "description": "Halo 2 Anniversary (Master Chief Collection) SweetFX2.0 Ultra Enhanced Graphics Mod",
+      "page": "https://gamebanana.com/mods/742073",
+      "files": [
+        {
+          "name": "halo_2_anniversary_mcc_ultra_enhanced_sweetfx20.zip",
+          "size": 4394308,
+          "url": "https://gamebanana.com/dl/1893829"
+        }
+      ],
+      "compat": "not",
+      "adult": false,
+      "game": "Halo: The Master Chief Collection",
+      "compatNote": "a SweetFX/Reshade graphics filter — for the PC version",
+      "images": [
+        "https://images.gamebanana.com/img/ss/mods/530-90_6afca72e56567.jpg",
+        "https://images.gamebanana.com/img/ss/mods/6afca72fc8b3f.jpg"
+      ],
+      "thumb": "https://images.gamebanana.com/img/ss/mods/220-90_6afca72e56567.jpg"
+    },
     {
-     "name": "ak47_weapon_tags_halo_3_.7z",
-     "size": 14197157,
-     "url": "https://gamebanana.com/dl/813893"
-    }
-   ],
-   "compat": "not",
-   "adult": false,
-   "game": "Halo: The Master Chief Collection",
-   "compatNote": "a Halo 3 (MCC) weapon mod"
-  },
-  {
-   "id": "gamebanana-357824",
-   "source": "GameBanana",
-   "name": "RookieVision Immersion Reshade [RiR]",
-   "author": "-Dat Mental Gamer-",
-   "description": "",
-   "page": "https://gamebanana.com/mods/357824",
-   "files": [
+      "id": "gamebanana-696252",
+      "source": "GameBanana",
+      "name": "Halo 3 Character/Weapon Visual Tweaks Commission",
+      "author": "AtlasGuitar",
+      "description": "",
+      "page": "https://gamebanana.com/mods/696252",
+      "files": [
+        {
+          "name": "h3characterweaponstweaks1.zip",
+          "size": 370503662,
+          "url": "https://gamebanana.com/dl/1760711"
+        },
+        {
+          "name": "h3characterweaponstweaks2.zip",
+          "size": 1451860744,
+          "url": "https://gamebanana.com/dl/1760726"
+        },
+        {
+          "name": "h3characterweaponstweaks3.zip",
+          "size": 1250212314,
+          "url": "https://gamebanana.com/dl/1760730"
+        },
+        {
+          "name": "h3characterweaponstweaks4.zip",
+          "size": 696468983,
+          "url": "https://gamebanana.com/dl/1760741"
+        }
+      ],
+      "compat": "not",
+      "adult": false,
+      "game": "Halo: The Master Chief Collection",
+      "compatNote": "a Halo 3 (MCC) visual mod",
+      "images": [
+        "https://images.gamebanana.com/img/ss/mods/530-90_6a5fb911736d0.jpg",
+        "https://images.gamebanana.com/img/ss/mods/6a5fb91116be7.jpg"
+      ],
+      "thumb": "https://images.gamebanana.com/img/ss/mods/220-90_6a5fb911736d0.jpg"
+    },
     {
-     "name": "hmcc_rir_v1.zip",
-     "size": 3626,
-     "url": "https://gamebanana.com/dl/748277"
-    }
-   ],
-   "compat": "not",
-   "adult": false,
-   "game": "Halo: The Master Chief Collection",
-   "compatNote": "a Reshade graphics filter — for the PC version"
-  },
-  {
-   "id": "gamebanana-54025",
-   "source": "GameBanana",
-   "name": "NOBLE Team ViDoc Over Reach Campaign Screen",
-   "author": "swcd3",
-   "description": "",
-   "page": "https://gamebanana.com/mods/54025",
-   "files": [
+      "id": "gamebanana-544344",
+      "source": "GameBanana",
+      "name": "Halo Intros for MCC",
+      "author": "KilLo445",
+      "description": "",
+      "page": "https://gamebanana.com/mods/544344",
+      "files": [
+        {
+          "name": "mcc-intros.7z",
+          "size": 306599617,
+          "url": "https://gamebanana.com/dl/1286953"
+        }
+      ],
+      "compat": "not",
+      "adult": false,
+      "game": "Halo: The Master Chief Collection",
+      "compatNote": "intro movies for the PC collection",
+      "images": [
+        "https://images.gamebanana.com/img/ss/mods/530-90_66f3b4b3dee19.jpg",
+        "https://images.gamebanana.com/img/ss/mods/66f3b4b9b4a0c.jpg"
+      ],
+      "thumb": "https://images.gamebanana.com/img/ss/mods/220-90_66f3b4b3dee19.jpg"
+    },
     {
-     "name": "nobleoverreach.7z",
-     "size": 155274838,
-     "url": "https://gamebanana.com/dl/440910"
+      "id": "gamebanana-497989",
+      "source": "GameBanana",
+      "name": "Battlefront 2 2005 Background",
+      "author": "-Dat Mental Gamer-",
+      "description": "",
+      "page": "https://gamebanana.com/mods/497989",
+      "files": [
+        {
+          "name": "halomcc_swbf2startmenuoverh2vignette_.zip",
+          "size": 110865061,
+          "url": "https://gamebanana.com/dl/1146582"
+        }
+      ],
+      "compat": "not",
+      "adult": false,
+      "game": "Halo: The Master Chief Collection",
+      "compatNote": "a menu background for the PC collection",
+      "images": [
+        "https://images.gamebanana.com/img/ss/mods/530-90_65dcf51767d25.jpg",
+        "https://images.gamebanana.com/img/ss/mods/65dcf5179bd3f.jpg"
+      ],
+      "thumb": "https://images.gamebanana.com/img/ss/mods/220-90_65dcf51767d25.jpg"
+    },
+    {
+      "id": "gamebanana-497838",
+      "source": "GameBanana",
+      "name": "Matrix Code Background",
+      "author": "-Dat Mental Gamer-",
+      "description": "",
+      "page": "https://gamebanana.com/mods/497838",
+      "files": [
+        {
+          "name": "halomcc_matrixcoderainoverfloodvignette.zip",
+          "size": 62180306,
+          "url": "https://gamebanana.com/dl/1146109"
+        }
+      ],
+      "compat": "not",
+      "adult": false,
+      "game": "Halo: The Master Chief Collection",
+      "compatNote": "a menu background for the PC collection",
+      "images": [
+        "https://images.gamebanana.com/img/ss/mods/530-90_65dbd1663d651.jpg",
+        "https://images.gamebanana.com/img/ss/mods/65dbd166395e2.jpg"
+      ],
+      "thumb": "https://images.gamebanana.com/img/ss/mods/220-90_65dbd1663d651.jpg"
+    },
+    {
+      "id": "gamebanana-452565",
+      "source": "GameBanana",
+      "name": "New Cursor",
+      "author": "ANS_685",
+      "description": "",
+      "page": "https://gamebanana.com/mods/452565",
+      "files": [
+        {
+          "name": "cursor_123b6.zip",
+          "size": 13370,
+          "url": "https://gamebanana.com/dl/1009015"
+        }
+      ],
+      "compat": "not",
+      "adult": false,
+      "game": "Halo: The Master Chief Collection",
+      "compatNote": "a menu cursor for the PC collection",
+      "images": [
+        "https://images.gamebanana.com/img/ss/mods/649aaa8e9eb08.jpg",
+        "https://images.gamebanana.com/img/ss/mods/649aaa8e9caae.jpg"
+      ],
+      "thumb": "https://images.gamebanana.com/img/ss/mods/220-90_649aaa8e9eb08.jpg"
+    },
+    {
+      "id": "gamebanana-440309",
+      "source": "GameBanana",
+      "name": "\"That's just... wrong\" skull in Halo: Reach",
+      "author": "ANS_685",
+      "description": "",
+      "page": "https://gamebanana.com/mods/440309",
+      "files": [
+        {
+          "name": "careerdb.zip",
+          "size": 52131,
+          "url": "https://gamebanana.com/dl/972986"
+        }
+      ],
+      "compat": "not",
+      "adult": false,
+      "game": "Halo: The Master Chief Collection",
+      "compatNote": "a Halo: Reach (MCC) mod",
+      "images": [
+        "https://images.gamebanana.com/img/ss/mods/530-90_6449492f07924.jpg",
+        "https://images.gamebanana.com/img/ss/mods/6449492f1b6d2.jpg"
+      ],
+      "thumb": "https://images.gamebanana.com/img/ss/mods/220-90_6449492f07924.jpg"
+    },
+    {
+      "id": "gamebanana-432604",
+      "source": "GameBanana",
+      "name": "Halo 2 Matchmaking Background",
+      "author": "hyperbx",
+      "description": "",
+      "page": "https://gamebanana.com/mods/432604",
+      "files": [
+        {
+          "name": "content_73d16.7z",
+          "size": 55385415,
+          "url": "https://gamebanana.com/dl/950366"
+        },
+        {
+          "name": "templates.zip",
+          "size": 1846770,
+          "url": "https://gamebanana.com/dl/950365"
+        }
+      ],
+      "compat": "not",
+      "adult": false,
+      "game": "Halo: The Master Chief Collection",
+      "compatNote": "a menu background for the PC collection",
+      "images": [
+        "https://images.gamebanana.com/img/ss/mods/530-90_693a043eda1b4.jpg",
+        "https://images.gamebanana.com/img/ss/mods/693a043edd2fc.jpg"
+      ],
+      "thumb": "https://images.gamebanana.com/img/ss/mods/220-90_693a043eda1b4.jpg"
+    },
+    {
+      "id": "gamebanana-430194",
+      "source": "GameBanana",
+      "name": "Noblevision Immersion Reshade [NiR]",
+      "author": "-Dat Mental Gamer-",
+      "description": "",
+      "page": "https://gamebanana.com/mods/430194",
+      "files": [
+        {
+          "name": "halomcc_nirv1.zip",
+          "size": 13041,
+          "url": "https://gamebanana.com/dl/943542"
+        }
+      ],
+      "compat": "not",
+      "adult": false,
+      "game": "Halo: The Master Chief Collection",
+      "compatNote": "a Reshade graphics filter — for the PC version",
+      "images": [
+        "https://images.gamebanana.com/img/ss/mods/530-90_6400e6d221631.jpg",
+        "https://images.gamebanana.com/img/ss/mods/6400e6d17bde8.jpg"
+      ],
+      "thumb": "https://images.gamebanana.com/img/ss/mods/220-90_6400e6d221631.jpg"
+    },
+    {
+      "id": "gamebanana-407113",
+      "source": "GameBanana",
+      "name": "Raygun Weapon Tags (Halo 3)",
+      "author": "Priception",
+      "description": "Raygun Weapon Tags (Halo 3)",
+      "page": "https://gamebanana.com/mods/407113",
+      "files": [
+        {
+          "name": "raygun_weapon_tags_ef446.zip",
+          "size": 13774811,
+          "url": "https://gamebanana.com/dl/877734"
+        },
+        {
+          "name": "raygun_campagin_maps.zip",
+          "size": 1090503903,
+          "url": "https://gamebanana.com/dl/878141"
+        }
+      ],
+      "compat": "not",
+      "adult": false,
+      "game": "Halo: The Master Chief Collection",
+      "compatNote": "a Halo 3 (MCC) weapon mod",
+      "images": [
+        "https://images.gamebanana.com/img/ss/mods/530-90_634c74389a8d7.jpg",
+        "https://images.gamebanana.com/img/ss/mods/634c7438cae9f.jpg"
+      ],
+      "thumb": "https://images.gamebanana.com/img/ss/mods/220-90_634c74389a8d7.jpg"
+    },
+    {
+      "id": "gamebanana-383494",
+      "source": "GameBanana",
+      "name": "AK47 Weapon Tags for Halo 3",
+      "author": "Priception",
+      "description": "Call of Duty: Black Ops II - AK47 imported into Halo 3",
+      "page": "https://gamebanana.com/mods/383494",
+      "files": [
+        {
+          "name": "ak47_weapon_tags_halo_3_.7z",
+          "size": 14197157,
+          "url": "https://gamebanana.com/dl/813893"
+        }
+      ],
+      "compat": "not",
+      "adult": false,
+      "game": "Halo: The Master Chief Collection",
+      "compatNote": "a Halo 3 (MCC) weapon mod",
+      "images": [
+        "https://images.gamebanana.com/img/ss/mods/530-90_62a7b767807b2.jpg",
+        "https://images.gamebanana.com/img/ss/mods/62a7b767a11c8.jpg"
+      ],
+      "thumb": "https://images.gamebanana.com/img/ss/mods/220-90_62a7b767807b2.jpg"
+    },
+    {
+      "id": "gamebanana-357824",
+      "source": "GameBanana",
+      "name": "RookieVision Immersion Reshade [RiR]",
+      "author": "-Dat Mental Gamer-",
+      "description": "",
+      "page": "https://gamebanana.com/mods/357824",
+      "files": [
+        {
+          "name": "hmcc_rir_v1.zip",
+          "size": 3626,
+          "url": "https://gamebanana.com/dl/748277"
+        }
+      ],
+      "compat": "not",
+      "adult": false,
+      "game": "Halo: The Master Chief Collection",
+      "compatNote": "a Reshade graphics filter — for the PC version",
+      "images": [
+        "https://images.gamebanana.com/img/ss/mods/530-90_620aa0e3d05c0.jpg",
+        "https://images.gamebanana.com/img/ss/mods/620aa0f123953.jpg"
+      ],
+      "thumb": "https://images.gamebanana.com/img/ss/mods/220-90_620aa0e3d05c0.jpg"
+    },
+    {
+      "id": "gamebanana-54025",
+      "source": "GameBanana",
+      "name": "NOBLE Team ViDoc Over Reach Campaign Screen",
+      "author": "swcd3",
+      "description": "",
+      "page": "https://gamebanana.com/mods/54025",
+      "files": [
+        {
+          "name": "nobleoverreach.7z",
+          "size": 155274838,
+          "url": "https://gamebanana.com/dl/440910"
+        }
+      ],
+      "compat": "not",
+      "adult": false,
+      "game": "Halo: The Master Chief Collection",
+      "compatNote": "a video file, not a mod",
+      "images": [
+        "https://images.gamebanana.com/img/ss/mods/530-90_5de89d7b3e596.jpg"
+      ],
+      "thumb": "https://images.gamebanana.com/img/ss/mods/220-90_5de89d7b3e596.jpg"
     }
-   ],
-   "compat": "not",
-   "adult": false,
-   "game": "Halo: The Master Chief Collection",
-   "compatNote": "a video file, not a mod"
-  }
- ]
+  ]
 }
