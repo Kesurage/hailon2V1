@@ -370,6 +370,3 @@ private fun importErrorText(context: android.content.Context, r: UserMods.Import
 
 private fun sizeText(n: Long): String =
   if (n >= 1024 * 1024) "%.1f MB".format(n / 1024f / 1024f) else "%d KB".format(n / 1024)
-
-/** The app's own dp, for a screen this file keeps to itself. */
-private fun Int.dp = androidx.compose.ui.unit.Dp(this.toFloat())
