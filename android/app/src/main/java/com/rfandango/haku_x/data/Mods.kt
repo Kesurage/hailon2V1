@@ -487,8 +487,8 @@ object UserMods {
 
   /** What one imported file came to. */
   private sealed interface Item {
-    /** Bytes to put over the disc at this path. */
-    class Installed(val discPath: String, val bytes: ByteArray) : Item
+    /** Bytes to put over the disc at this path (with a word about how they came). */
+    class Installed(val discPath: String, val bytes: ByteArray, val note: String? = null) : Item
     class Skipped(val error: ImportError, val details: String) : Item
   }
 
@@ -531,6 +531,18 @@ object UserMods {
    */
   fun import(context: Context, gameKey: String, uri: android.net.Uri): ImportResult {
     val name = queryName(context, uri) ?: return ImportResult(error = ImportError.UNREADABLE)
+    val tmp = File(context.cacheDir, "import_mod")
+    return try {
+      copy(context, uri, tmp)
+      importFile(context, gameKey, name, tmp)
+    } finally {
+      tmp.delete()
+    }
+  }
+
+  /** A file already on disk (the browser's downloads): the same import, by
+   *  its own name. The file is left as it is — the caller's to clean. */
+  fun importFile(context: Context, gameKey: String, name: String, file: File): ImportResult {
     val base = baseName(name)
     val lower = name.lowercase(Locale.ROOT)
     val dir = dir(context, gameKey)
@@ -538,7 +550,8 @@ object UserMods {
     try {
       when {
         lower.endsWith(".map") -> {
-          val bytes = readAll(context, uri) ?: return ImportResult(error = ImportError.UNREADABLE)
+          val bytes = try { file.readBytes() } catch (_: Exception) { null }
+            ?: return ImportResult(error = ImportError.UNREADABLE)
           when (val item = mapItem(name, bytes, disc)) {
             is Item.Installed -> writeMod(dir, "$PREFIX$base", name, "",
               "Replaces ${item.discPath.replace('/', '\\')} on the disc.", listOf(item))
@@ -546,7 +559,8 @@ object UserMods {
           }
         }
         lower.endsWith(".asmp") || lower.endsWith(".patchdat") || lower.endsWith(".ascpatch") -> {
-          val bytes = readAll(context, uri) ?: return ImportResult(error = ImportError.UNREADABLE)
+          val bytes = try { file.readBytes() } catch (_: Exception) { null }
+            ?: return ImportResult(error = ImportError.UNREADABLE)
           when (val item = patchItem(name, bytes, disc)) {
             is Item.Installed -> writeMod(dir, "$PREFIX$base", name, "",
               "Rebuilds ${item.discPath.replace('/', '\\')} from the disc's own.", listOf(item))
@@ -554,16 +568,14 @@ object UserMods {
           }
         }
         lower.endsWith(".txt") -> {
-          val text = context.contentResolver.openInputStream(uri)?.use { it.readBytes().toString(Charsets.UTF_8) }
+          val text = try { file.readText() } catch (_: Exception) { null }
             ?: return ImportResult(error = ImportError.UNREADABLE)
           if (!looksLikeAPatch(text)) return ImportResult(error = ImportError.NOT_A_PATCH)
           writeModTxt(dir, "$PREFIX$base", name, "XBE patches.")
           File(dir, "$PREFIX$base/mod.txt").writeText(text)
         }
         lower.endsWith(".zip") -> {
-          val tmp = File(context.cacheDir, "import_mod.zip")
-          copy(context, uri, tmp)
-          ZipFile(tmp).use { zip ->
+          ZipFile(file).use { zip ->
             val entries = zip.entries().asSequence()
               .filter { !it.isDirectory && !it.name.startsWith("__MACOSX") }
               .take(512).toList()
@@ -583,7 +595,6 @@ object UserMods {
                 out.parentFile?.mkdirs()
                 zip.getInputStream(e).use { input -> java.io.FileOutputStream(out).use { input.copyTo(it) } }
               }
-              tmp.delete()
             } else {
               /* no mod.txt: the maps and patches in it, each read for what it is */
               val items = mutableListOf<Item>()
@@ -600,7 +611,6 @@ object UserMods {
                   Item.Skipped(ImportError.NOTHING_USABLE, "$n: two files replace the same map; the first was kept")
                 } else it }
               }
-              tmp.delete()
               val installed = items.filterIsInstance<Item.Installed>()
               if (installed.isEmpty()) {
                 return ImportResult(error = ImportError.NOTHING_USABLE,
@@ -647,11 +657,35 @@ object UserMods {
         Item.Installed("maps/$target.map", bytes)
       }
       HaloMap.Kind.MCC_H2C -> {
-        /* decompressed only to say which map it is; nothing is installed */
-        val plainName = runCatching { HaloMap.read(Saber.decompress(bytes, info.mccU1 ?: true)).internalName }
-          .getOrDefault(info.internalName)
-        Item.Skipped(ImportError.MCC_MAP,
-          "$name: a Master Chief Collection map${if (plainName.isNotEmpty()) " (\"$plainName\")" else ""} — the PC collection's own format; converting it to the disc's maps comes in a next build")
+        /* the collection's own format: decompressed, checked against the
+         * disc's map of the same name, and carried over whole (MccConvert)
+         * — experimental until the game itself has said it works */
+        if (disc == null) return Item.Skipped(ImportError.DISC_UNREADABLE,
+          "the disc could not be read to convert $name against")
+        val target = listOfNotNull(
+          info.internalName.takeIf { it.isNotEmpty() && disc.maps.any { m -> m.equals("$it.map", true) } },
+          baseName(name).takeIf { disc.maps.any { m -> m.equals("$it.map", true) } },
+        ).firstOrNull()
+          ?: return Item.Skipped(ImportError.BASE_MAP_MISSING,
+            "a Master Chief Collection map, but no \"${info.internalName.ifEmpty { baseName(name) }}.map\" is on it" +
+              " to convert against (the disc has ${disc.maps.take(8).joinToString()}…)")
+        val plain = if (info.mccCompressed == false) bytes else try {
+          Saber.decompress(bytes, info.mccU1 ?: true)
+        } catch (e: Exception) {
+          return Item.Skipped(ImportError.MCC_MAP, "$name: its compression would not decode (${e.message})")
+        }
+        val base = disc.read(target)
+          ?: return Item.Skipped(ImportError.BASE_MAP_MISSING, "$name: \"$target\" would not read off the disc")
+        if (HaloMap.read(base).kind != HaloMap.Kind.XBOX_H2) {
+          return Item.Skipped(ImportError.BASE_MAP_MISSING, "$name: the disc's \"$target\" is not the disc's own build (?)")
+        }
+        try {
+          val converted = MccConvert.convert(plain, info.mccU1 ?: true, base)
+          Item.Installed("maps/$target", converted,
+            note = "converted from the MCC (PC collection) format — experimental; if the game will not take it, turn it off")
+        } catch (e: MccConvert.ConvertException) {
+          Item.Skipped(ImportError.MCC_MAP, "$name: $e.message")
+        }
       }
       HaloMap.Kind.VISTA_H2 -> Item.Skipped(ImportError.VISTA_MAP,
         "$name: Halo 2 Vista (the 2007 PC port), build ${info.build} — its maps are not the disc's build")
@@ -720,7 +754,11 @@ object UserMods {
       out.parentFile?.mkdirs()
       out.writeBytes(item.bytes)
     }
-    writeModTxt(dir, id, name, description, author)
+    /* what an item says about itself goes under the description (a converted
+     * map says it is one, until the game has vouched for it) */
+    val notes = items.filterIsInstance<Item.Installed>().mapNotNull { it.note }.filter { it.isNotEmpty() }
+    val said = if (notes.isEmpty()) description else "$description\n\n${notes.joinToString("\n")}"
+    writeModTxt(dir, id, name, said, author)
   }
 
   /** An imported mod gone (its files too); true if it was on. */

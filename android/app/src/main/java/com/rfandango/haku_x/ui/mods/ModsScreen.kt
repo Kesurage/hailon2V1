@@ -53,7 +53,7 @@ import kotlinx.coroutines.withContext
  * game's menu while it runs.
  */
 @Composable
-fun ModsScreen(gameKey: String, title: String, onBack: () -> Unit) {
+fun ModsScreen(gameKey: String, title: String, onBack: () -> Unit, onBrowse: (String, String) -> Unit) {
   val context = LocalContext.current
   var game by remember(gameKey) { mutableStateOf(ModCatalog.load(context, gameKey)) }
   val choices = remember(gameKey) { ModChoices(context, gameKey) }
@@ -207,6 +207,13 @@ fun ModsScreen(gameKey: String, title: String, onBack: () -> Unit) {
         icon = null,
       ) {
         if (!importing) import.launch(arrayOf("*/*"))
+      }
+      ActionItem(
+        title = stringResource(R.string.market_browse),
+        summary = stringResource(R.string.market_browse_desc),
+        icon = null,
+      ) {
+        onBrowse(gameKey, title)
       }
       if (game.cheats.isNotEmpty()) {
         Section(stringResource(R.string.mods_section_cheats))

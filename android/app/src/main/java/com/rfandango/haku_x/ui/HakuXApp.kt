@@ -30,6 +30,7 @@ import com.rfandango.haku_x.ui.driver.GpuDriverScreen
 import com.rfandango.haku_x.ui.hdd.HddScreen
 import com.rfandango.haku_x.ui.insignia.InsigniaWizard
 import com.rfandango.haku_x.ui.library.LibraryScreen
+import com.rfandango.haku_x.ui.market.MarketplaceScreen
 import com.rfandango.haku_x.ui.mods.ModsScreen
 import com.rfandango.haku_x.ui.settings.GameSettingsScreen
 import com.rfandango.haku_x.ui.settings.SettingsScreen
@@ -61,6 +62,7 @@ private object Routes {
   fun game(key: String, title: String) = "game?key=${Uri.encode(key)}&title=${Uri.encode(title)}"
   /** One disc's mods and cheats: its game key and title. */
   const val MODS = "mods?key={key}&title={title}"
+  const val MARKET = "market?key={key}&title={title}"
 
   fun mods(key: String, title: String) = "mods?key=${Uri.encode(key)}&title=${Uri.encode(title)}"
 }
@@ -157,6 +159,20 @@ fun HakuXApp(
       ),
     ) { entry ->
       ModsScreen(
+        gameKey = entry.arguments?.getString("key").orEmpty(),
+        title = entry.arguments?.getString("title").orEmpty(),
+        onBack = { nav.popBackStack() },
+        onBrowse = { key, t -> nav.navigate("market?key=$key&title=${android.net.Uri.encode(t)}") },
+      )
+    }
+    composable(
+      Routes.MARKET,
+      arguments = listOf(
+        navArgument("key") { type = NavType.StringType; defaultValue = "" },
+        navArgument("title") { type = NavType.StringType; defaultValue = "" },
+      ),
+    ) { entry ->
+      MarketplaceScreen(
         gameKey = entry.arguments?.getString("key").orEmpty(),
         title = entry.arguments?.getString("title").orEmpty(),
         onBack = { nav.popBackStack() },

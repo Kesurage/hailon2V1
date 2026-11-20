@@ -1,5 +1,13 @@
 # Changelog
 
+## v0003B
+
+MCC mods supported: **a Master Chief Collection map now converts to the disc's own format on the phone**, and the mod browser opens the modding sites to it.
+
+- **The converter** (MccConvert): an MCC map's body is kept whole behind an Xbox header — no tag surgery. Its safety is not faith: both maps' address bases are read from their own tag tables and must agree (the disc's own map calibrates the check, every conversion runs against the disc's map of the same name), the collection's areas must clear the disc's header (its index area alone moves, with its two addresses rewritten), and the result is re-parsed and its tags compared entry-by-entry before anything is installed. Every refusal names its reason. **Experimental** until the game itself has vouched for it — a converted mod says so under its description, and turns off like any other.
+- **The mod browser** (Mods → Browse mods): this app's own catalog (18 verified entries to start, refreshed from the repository between releases), **GameBanana's open API** (the classic Halo 2 section and the collection's), **the Internet Archive's search**, and **Nexus Mods behind your own API key** — the one place the collection's whole scene (adult half included, behind the Show adult content toggle) is listed. Every entry carries a compatibility line (works here / partial / not for this game / reads on arrival), downloads land through the importer's own classification, and what lands is an ordinary imported mod: on, off or gone from the Mods screen.
+- Steam Workshop needs Steam itself — on a phone that is not had; Nexus, GameBanana and the Archive are what a phone can honestly reach, and none of them ask for a captcha.
+
 ## v0003A
 
 The mod manager rebuilt: the importer knows what it is holding, builds modders' patches onto the disc's own maps **on the phone** (no PC, no Assembly), and says exactly why when something will not go.
