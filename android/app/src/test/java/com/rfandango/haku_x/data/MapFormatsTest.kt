@@ -129,25 +129,35 @@ class MapFormatsTest {
   @Test fun saberBringsAnMccMapBack() {
     val plain = xboxMap() + ByteArray(0x1000) { (it % 251).toByte() }
     val back = Saber.decompress(mccU1Map(plain = plain), true)
-    assertTrue("the map comes back whole", back.contentEquals(plain))
+    /* the stored header carries the MCC's own version and names; the whole
+     * of the map past it is the original's bytes */
+    assertEquals("the same length back", plain.size, back.size)
+    assertTrue("the map's bytes come back whole",
+      back.copyOfRange(0x380, back.size).contentEquals(plain.copyOfRange(0x380, plain.size)))
+    assertEquals("the MCC version it was stored with", 13, HaloMap.le32(back, 4))
+    assertEquals("the compressed bit is cleared", 0, back[0x1C].toInt())
   }
 
   @Test fun saberTakesAFauxChunk() {
     /* a chunk stored raw, its size negated (the other tools' way) */
     val plain = xboxMap() + ByteArray(0x100) { (it % 7).toByte() }
-    val stored = ByteArray(0x380 + 0x100 + 0x100)
-    plain.copyInto(stored, 0, 0, 0x380)
-    plain.copyInto(stored, 0x380, 0x380, plain.size)
+    val stored = ByteArray(plain.size + 8)
+    plain.copyInto(stored)
     le32(stored, 0x308, 0x40000)
     le32(stored, 0x30C, 0x380)
-    val tableAt = 0x480
+    val tableAt = plain.size
     le32(stored, 0x310, tableAt)
     le32(stored, 0x314, 1)
     le32(stored, tableAt, -(plain.size - 0x380))
     le32(stored, tableAt + 4, 0x380)
     val back = Saber.decompress(stored, true)
-    assertTrue(back.contentEquals(plain))
-    assertTrue("the compressed bit is cleared", back[0x1C].toInt() == 0)
+    assertEquals("the same length", plain.size, back.size)
+    /* the stored header carries the compression fields; the chunk's own
+     * bytes and the map's first 0x300 are what comes back */
+    assertTrue("the chunk's bytes come back whole",
+      back.copyOfRange(0x380, back.size).contentEquals(plain.copyOfRange(0x380, plain.size)))
+    assertTrue("the header is the map's own",
+      back.copyOfRange(0, 0x300).contentEquals(plain.copyOfRange(0, 0x300)))
   }
 
   @Test fun aBrokenChunkRefuses() {
@@ -187,6 +197,7 @@ class MapFormatsTest {
     /* v1: the poke base (8 bytes at v3) and index; v2: the output name; v3: the PC flag and build */
     write32(titl, 0); write32(titl, 0)
     titl.write(0)                                   /* the meta changes index */
+    titl.write(0)                                   /* an empty output name */
     titl.write(0)                                   /* not a PC patch */
     for (c in "02.09.27.09809") titl.write(c.code)
     titl.write(0)
@@ -240,7 +251,7 @@ class MapFormatsTest {
     val out = patch.applyTo(base, "coagulation")
     assertEquals("grown by 0x10", base.size + 0x10, out.size)
     assertEquals("the write lands at the segment's new place", 1, out[0x200].toInt())
-    assertEquals("the tail moved", 0x55, out[0x200 + 0x10 + 0x40].toInt())
+    assertEquals("the tail moved", 0x55, out[0x400 + 0x10].toInt())
   }
 
   @Test fun aPatchForAnotherMapRefuses() {
@@ -306,8 +317,9 @@ class MapFormatsTest {
     val sector = 2048
     val rootSector = 20
     val mapsSector = 21
-    val mapSector = 30
-    val size = (mapSector + 4) * sector
+    /* past the volume descriptor (0x10000, sector 32) — the map would sit on it */
+    val mapSector = 40
+    val size = mapSector * sector + mapBytes.size + 4 * sector
     val f = createTempFile("disc", ".iso").toFile()
     RandomAccessFile(f, "rw").use { raf ->
       val img = ByteArray(size)
