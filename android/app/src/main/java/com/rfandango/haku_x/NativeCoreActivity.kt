@@ -103,10 +103,11 @@ class NativeCoreActivity : SDLActivity(), InputManager.InputDeviceListener {
           fpsRingAt = (fpsRingAt + 1) % fpsRing.size
           val avg = fpsRing.filter { it > 0f }.let { l -> if (l.size >= 8) l.average().toFloat() else 0f }
           runSpeed = avg
+          val act = this@NativeCoreActivity
           if (!slowSpoken && avg > 0f && avg < SLOW_AT_FPS &&
-              RunSettings(AppPrefs(this), gameOverrides()).renderScale >= 2) {
+              RunSettings(AppPrefs(act), act.gameOverrides()).renderScale >= 2) {
             slowSpoken = true
-            Toast.makeText(this, getString(R.string.overlay_slow_scale, avg.toInt()), Toast.LENGTH_LONG).show()
+            Toast.makeText(act, act.getString(R.string.overlay_slow_scale, avg.toInt()), Toast.LENGTH_LONG).show()
           }
         }
       }

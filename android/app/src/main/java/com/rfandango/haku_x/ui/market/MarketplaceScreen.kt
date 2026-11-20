@@ -274,9 +274,12 @@ fun MarketplaceScreen(gameKey: String, title: String, onBack: () -> Unit) {
       LazyColumn(Modifier.weight(1f)) {
         items(mods, key = { it.id }) { mod ->
           ListItem(
-            leadingContent = mod.thumb?.let { thumb ->
-              Box(Modifier.padding(end = 4.dp)) {
-                MarketImage(thumb, Modifier.size(56.dp).clip(RoundedCornerShape(6.dp)))
+            leadingContent = {
+              val thumb = mod.thumb
+              if (thumb != null) {
+                Box(Modifier.padding(end = 4.dp)) {
+                  MarketImage(thumb, Modifier.size(56.dp).clip(RoundedCornerShape(6.dp)))
+                }
               }
             },
             headlineContent = {
