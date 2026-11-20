@@ -45,7 +45,7 @@ object Xdvdfs {
       val dirent = readDir(dir).firstOrNull { it.second.name.equals(parts.last(), ignoreCase = true) }?.second
         ?: return null
       if (dirent.isDir || dirent.size > maxBytes || dirent.size <= 0) return null
-      return read(partition + dirent.sector * SECTOR, dirent.size.toInt())
+      return read(partition + dirent.sector * SECTOR, dirent.size.toInt())?.array()
     }
 
     /** The root directory's (sector, size) out of the volume descriptor. */
@@ -78,7 +78,7 @@ object Xdvdfs {
         val size = b.getInt(offset + 8).toLong() and 0xFFFFFFFFL
         val flags = b.get(offset + 12).toInt() and 0xFF
         val nameLen = b.get(offset + 13).toInt() and 0xFF
-        if (offset + 14 + nameLen > b.size) throw DiscException("a name runs past the folder")
+        if (offset + 14 + nameLen > b.capacity()) throw DiscException("a name runs past the folder")
         val name = String(ByteArray(nameLen) { b.get(offset + 14 + it) }, Charsets.US_ASCII)
         if (name.isNotEmpty()) {
           out += offset to Entry(name, flags and 0x10 != 0, sector, size)
@@ -90,7 +90,7 @@ object Xdvdfs {
       return out
     }
 
-    private fun read(at: Long, n: Int): ByteArray? {
+    private fun read(at: Long, n: Int): ByteBuffer? {
       if (n <= 0 || at < 0) return null
       val buf = ByteBuffer.allocate(n).order(ByteOrder.LITTLE_ENDIAN)
       var pos = at
@@ -99,7 +99,8 @@ object Xdvdfs {
         if (got <= 0) return null
         pos += got
       }
-      return buf.array()
+      buf.flip()
+      return buf
     }
   }
 }
