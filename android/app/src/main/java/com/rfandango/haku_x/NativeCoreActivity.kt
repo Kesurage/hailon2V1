@@ -766,16 +766,19 @@ class NativeCoreActivity : SDLActivity(), InputManager.InputDeviceListener {
       orientation = android.widget.LinearLayout.VERTICAL
       setPadding(pad, pad / 2, pad, 0)
     }
-    fun bar(label: String, get: () -> Float, set: (Float) -> Unit, min: Float, max: Float) {
+    /* the range's ends are lo/hi, not min/max: a SeekBar carries its own
+     * min and max, and the listener would read those instead */
+    fun bar(label: String, get: () -> Float, set: (Float) -> Unit, lo: Float, hi: Float) {
       val value = android.widget.TextView(this)
       fun show(v: Float) { value.text = "$label  %.2f".format(v) }
       show(get())
+      val steps = ((hi - lo) / 0.05f).toInt().coerceAtLeast(1)
       val seek = android.widget.SeekBar(this).apply {
-        max = ((max - min) / 0.05f).toInt()
-        progress = ((get() - min) / 0.05f).toInt()
+        max = steps
+        progress = ((get() - lo) / 0.05f).toInt().coerceIn(0, steps)
         setOnSeekBarChangeListener(object : android.widget.SeekBar.OnSeekBarChangeListener {
           override fun onProgressChanged(b: android.widget.SeekBar?, p: Int, fromUser: Boolean) {
-            if (fromUser) { val v = (min + p * 0.05f).coerceIn(min, max); set(v); show(v) }
+            if (fromUser) { val v = (lo + p * 0.05f).coerceIn(lo, hi); set(v); show(v) }
           }
           override fun onStartTrackingTouch(b: android.widget.SeekBar?) {}
           override fun onStopTrackingTouch(b: android.widget.SeekBar?) {}

@@ -436,7 +436,7 @@ private fun MarketImage(url: String, modifier: Modifier = Modifier) {
     if (ImageCache.get(url) == null) {
       withContext(Dispatchers.IO) {
         Marketplace.fetchBytes(url)?.let { bytes ->
-          runCatching { BitmapFactory.decodeByteArray(bytes, 0, bytes.size) }
+          runCatching { BitmapFactory.decodeByteArray(bytes, 0, bytes.size) }.getOrNull()
         }?.let { ImageCache.put(url, it) }
       }
     }
