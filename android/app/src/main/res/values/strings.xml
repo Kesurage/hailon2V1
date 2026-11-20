@@ -388,10 +388,10 @@
   <string name="mods_import_err_nothing">Nothing in it this game can use.</string>
   <!-- The mod browser -->
   <string name="market_browse">Browse mods</string>
-  <string name="market_browse_desc">This app's own catalog, GameBanana, the Internet Archive, and Nexus Mods with your own API key.</string>
+  <string name="market_browse_desc">This app\'s own catalog, GameBanana, the Internet Archive, and Nexus Mods with your own API key.</string>
   <string name="market_title">Mod browser</string>
   <string name="market_search">Search</string>
-  <string name="market_source_catalog">This app's picks</string>
+  <string name="market_source_catalog">This app\'s picks</string>
   <string name="market_source_gb_mcc">GameBanana MCC</string>
   <string name="market_source_archive">Archive.org</string>
   <string name="market_source_nexus_h2">Nexus H2V</string>
@@ -401,7 +401,7 @@
   <string name="market_empty">Nothing came back for that.</string>
   <string name="market_error">The source did not answer.</string>
   <string name="market_nexus_key">Nexus API key</string>
-  <string name="market_nexus_key_desc">Nexus Mods lists the collection's whole mod scene (its adult half included) behind your own account's key: nexusmods.com, My Account, API keys. The key never leaves this phone.</string>
+  <string name="market_nexus_key_desc">Nexus Mods lists the collection\'s whole mod scene (its adult half included) behind your own account\'s key: nexusmods.com, My Account, API keys. The key never leaves this phone.</string>
   <string name="market_nexus_none">Paste your Nexus API key above to browse it.</string>
   <string name="market_nexus_save">Save</string>
   <string name="market_working">Working…</string>
